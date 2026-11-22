@@ -1,0 +1,773 @@
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom'
+import { Routes, Route } from 'react-router-dom'
+import FeedPage from './pages/FeedPage'
+import StaffPage from './pages/StaffPage'
+import QuestionDetailPage from './pages/QuestionDetailPage'
+import ApplyPage from './pages/ApplyPage'
+import ProfilePage from './pages/ProfilePage'
+
+import {
+  Search, Sun, Moon, Bell, LogOut, Bookmark,
+  MessageSquare, ThumbsUp, Eye, CheckCircle, Sparkles,
+  X, Briefcase, Mail, MapPin, Clock, ArrowLeft, ShieldCheck, Upload
+} from 'lucide-react';
+
+
+const MOCK_TOPICS = [
+  { name: 'All Questions', color: '#D4AF37', count: '3.4k' },
+  { name: 'Computing', color: '#0ea5e9', count: '1.2k' },
+  { name: 'Engineering', color: '#3B82F6', count: '842' },
+  { name: 'Sciences', color: '#10B981', count: '654' },
+  { name: 'Medicine', color: '#EF4444', count: '412' },
+  { name: 'Management', color: '#8B5CF6', count: '398' },
+  { name: 'Campus Life', color: '#F59E0B', count: '890' }
+];
+
+const MOCK_STAFF = [
+  { id: 1, name: 'Prof. A. T. Balewa', role: 'HOD, Computer Science', dept: 'Computing', avatar: 'AB', bg: '#10B981', online: true, bio: 'Researching quantum computing and AI ethics. Available for M.Sc supervision.', office: 'Block C, Room 302', hours: 'Mon & Wed, 10am - 2pm' },
+  { id: 2, name: 'Dr. Sarah Ibrahim', role: 'Senior Lecturer', dept: 'Computing', avatar: 'SI', bg: '#8B5CF6', online: false, bio: 'Specialist in Software Engineering and Database Systems.', office: 'Block C, Room 105', hours: 'Tue & Thu, 12pm - 3pm' },
+  { id: 3, name: 'Engr. M. Kabir', role: 'Lecturer I', dept: 'Engineering', avatar: 'MK', bg: '#3B82F6', online: true, bio: 'Mechanical design and thermodynamics expert.', office: 'Eng Block, Room 44', hours: 'Fridays, 9am - 12pm' },
+  { id: 4, name: 'Dr. F. Ojo', role: 'Associate Professor', dept: 'Medicine', avatar: 'FO', bg: '#EF4444', online: true, bio: 'Clinical anatomy and physiology.', office: 'Med College, Rm 12', hours: 'Mon - Thu, 8am - 10am' },
+  { id: 5, name: 'Mr. Usman Ali', role: 'Lab Technologist', dept: 'Engineering', avatar: 'UA', bg: '#F59E0B', online: false, bio: 'Manages the central fabrication laboratory.', office: 'Central Lab', hours: 'Mon - Fri, 9am - 4pm' },
+  { id: 6, name: 'Mrs. H. Bello', role: 'Lecturer II', dept: 'Management', avatar: 'HB', bg: '#EC4899', online: true, bio: 'Accounting principles and corporate finance.', office: 'Mgt Block, Rm 02', hours: 'Wednesdays, 1pm - 4pm' },
+  { id: 7, name: 'Dr. T. Yakubu', role: 'Cybersecurity Analyst', dept: 'Computing', avatar: 'TY', bg: '#0ea5e9', online: true, bio: 'Network security and cryptography researcher.', office: 'Block D, Room 211', hours: 'Mon & Fri, 11am - 2pm' },
+];
+
+const MOCK_QUESTIONS = [
+  {
+    id: 1, user: 'Mohammed Kabir', role: 'Student', dept: 'Mechanical Engineering', time: '2 hours ago',
+    avatar: 'MK', bg: '#3B82F6', isStaff: false, answered: true,
+    title: 'What is the best way to prepare for MTH201 exams?',
+    preview: 'I am currently in 200L and I heard the lecturer for MTH201 is very strict with his marking scheme. Are there any specific past questions or textbooks that perfectly align with his teaching style?',
+    content: 'I am currently in 200L and I heard the lecturer for MTH201 is very strict with his marking scheme. Are there any specific past questions or textbooks that perfectly align with his teaching style? I have tried reading K.A Stroud but it feels too voluminous for the time I have left. Any advice from senior colleagues?',
+    tags: ['Engineering', 'Academics'], likes: 24, answers: 5, views: 142,
+    replies: [
+      { id: 101, user: 'Dr. Sarah Ibrahim', isStaff: true, time: '1 hour ago', content: 'Focus on the lecture notes provided. The exam questions are 80% derived from the specific examples solved in class. K.A Stroud is good for reference, but your class notes are your primary syllabus.' },
+      { id: 102, user: 'Amina Yusuf', isStaff: false, time: '45 mins ago', content: 'Get the past questions from the faculty library. There is a pattern to how the questions are structured over the last 5 years.' }
+    ]
+  },
+  {
+    id: 2, user: 'Dr. Sarah Ibrahim', role: 'Staff', dept: 'Computing', time: '5 hours ago',
+    avatar: 'SI', bg: '#8B5CF6', isStaff: true, answered: false,
+    title: 'Announcement: Submission deadline for CSC411 Mini Projects',
+    preview: 'Please note that the final submission date for all CSC411 hardware projects has been extended to Friday next week. Ensure your documentation follows the IEEE format strictly.',
+    content: 'Please note that the final submission date for all CSC411 hardware projects has been extended to Friday next week. Ensure your documentation follows the IEEE format strictly. Late submissions will attract a 10% penalty per day. Submit to the lab technologist before 4 PM.',
+    tags: ['Computing', 'Announcement'], likes: 89, answers: 0, views: 450, replies: []
+  },
+  {
+    id: 3, user: 'David Ojo', role: 'Student', dept: 'Medicine', time: '1 day ago',
+    avatar: 'DO', bg: '#EF4444', isStaff: false, answered: true,
+    title: 'How do I apply for the university hostel accommodation online?',
+    preview: 'The portal seems to be showing "Allocation Closed" but I was told batch B allocation starts today. Has anyone successfully booked a bed space in Yelwa campus today?',
+    content: 'The portal seems to be showing "Allocation Closed" but I was told batch B allocation starts today. Has anyone successfully booked a bed space in Yelwa campus today? Every time I try to generate a remita, it logs me out.',
+    tags: ['Campus Life', 'Hostel'], likes: 15, answers: 2, views: 210,
+    replies: [
+      { id: 301, user: 'Student Union', isStaff: false, time: '10 hours ago', content: 'The portal is currently undergoing maintenance. It will be opened by 4PM today. Keep refreshing.' }
+    ]
+  }
+];
+
+const MOCK_TRENDING = [
+  { rank: 1, title: 'When is the matriculation date for freshers?', meta: 'Campus Life · 84 answers' },
+  { rank: 2, title: 'Result for GST111 is out', meta: 'General · 120 answers' },
+  { rank: 3, title: 'How to bypass the portal clearance error', meta: 'Academics · 45 answers' }
+];
+
+const GlobalStyles = () => (
+  <style dangerouslySetInnerHTML={{__html: `
+    :root {
+      --brand-navy: #0B1F35; --brand-navy-light: #3B1A08; --brand-navy-dark: #061220;
+      --brand-gold: #D4AF37; --brand-gold-light: #F3E5AB; --brand-gold-dim: rgba(212, 175, 55, 0.15);
+      --bg-body: #F8FAFC; --bg-surface: #FFFFFF; --bg-surface-hover: #F1F5F9; --bg-surface-alt: #F3F6F9;
+      --text-main: #0F172A; --text-muted: #475569; --text-faint: #94A3B8;
+      --border-subtle: #E2E8F0; --border-strong: #CBD5E1;
+      --status-success: #10B981; --status-success-bg: #D1FAE5;
+      --status-error: #EF4444; --status-error-bg: #FEE2E2;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.04);
+      --shadow-glow: 0 0 15px rgba(212, 175, 55, 0.4);
+      --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px; --radius-xl: 24px;
+      --topbar-h: 70px; --sidebar-w: 260px;
+      --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    html[data-theme="dark"] {
+      --bg-body: #04060F; --bg-surface: #1C0800; --bg-surface-hover: #04060F; --bg-surface-alt: #000000;
+      --text-main: #F1F5F9; --text-muted: #94A3B8; --text-faint: #475569;
+      --border-subtle: #1E293B; --border-strong: #334155;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+      --status-success-bg: #064E3B; --status-error-bg: #7F1D1D;
+    }
+    body { font-family: 'Inter', system-ui, sans-serif; background-color: var(--bg-body); color: var(--text-main); transition: background-color 0.3s, color 0.3s; margin: 0; padding: 0; }
+    * { box-sizing: border-box; }
+    button { cursor: pointer; border: none; background: none; font-family: inherit; }
+    input, textarea, select { font-family: inherit; outline: none; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes popIn { 0% { opacity: 0; transform: scale(0.95) translateY(10px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+    @keyframes pulseGlow { 0% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(212, 175, 55, 0); } 100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); } }
+    .animate-fade-up { animation: fadeUp 0.5s var(--ease-spring) both; }
+    .stagger-1 { animation-delay: 0.05s; } .stagger-2 { animation-delay: 0.1s; } .stagger-3 { animation-delay: 0.15s; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 10px; }
+    .card { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); transition: all 0.2s; }
+    .card:hover { box-shadow: var(--shadow-md); border-color: var(--border-strong); }
+    .btn-primary { background: var(--brand-gold); color: var(--brand-navy-dark); font-weight: 600; padding: 0 16px; height: 40px; border-radius: var(--radius-md); transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: var(--shadow-glow); filter: brightness(1.1); }
+    .input-field { width: 100%; padding: 12px 16px; border-radius: var(--radius-md); border: 1px solid var(--border-strong); background: var(--bg-surface-hover); color: var(--text-main); transition: all 0.2s; }
+    .input-field:focus { background: var(--bg-surface); border-color: var(--brand-gold); box-shadow: 0 0 0 3px var(--brand-gold-dim); }
+    .app-container { max-width: 1280px; margin: 0 auto; padding: calc(var(--topbar-h) + 32px) 24px 60px; display: grid; grid-template-columns: var(--sidebar-w) 1fr 300px; gap: 32px; align-items: start; }
+    @media (max-width: 1100px) { .app-container { grid-template-columns: var(--sidebar-w) 1fr; } .right-sidebar { display: none; } }
+    @media (max-width: 850px) { .app-container { grid-template-columns: 1fr; padding: calc(var(--topbar-h) + 16px) 16px 80px; } .left-sidebar { display: none; } }
+    .thread-line { position: absolute; left: 22px; top: 50px; bottom: 0; width: 2px; background: var(--border-subtle); z-index: 0; }
+    .reply-card { position: relative; z-index: 1; background: var(--bg-surface-hover); border-radius: var(--radius-md); padding: 16px; margin-left: 50px; margin-top: 16px; border: 1px solid var(--border-subtle); }
+
+    /* FIX 3: Modal overlay uses visibility+opacity so CSS transitions can actually fire.
+       display:none was killing the transition before the animation could run. */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(6,18,32,0.6);
+      backdrop-filter: blur(8px);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+    .modal-overlay.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .modal-overlay.visible {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: all;
+    }
+    .modal-box {
+      transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s;
+    }
+    .modal-overlay.hidden .modal-box {
+      transform: scale(0.95) translateY(20px);
+      opacity: 0;
+    }
+    .modal-overlay.visible .modal-box {
+      transform: scale(1) translateY(0);
+      opacity: 1;
+    }
+  `}} />
+);
+
+let toastCount = 0;
+
+export default function App() {
+  const [theme, setTheme] = useState('light');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [activeView, setActiveView] = useState('feed');
+  const [selectedTopic, setSelectedTopic] = useState('All Questions');
+  const [activeQuestionId, setActiveQuestionId] = useState(null);
+  const [activeStaffId, setActiveStaffId] = useState(null);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authTab, setAuthTab] = useState('login');
+  const [staffModalOpen, setStaffModalOpen] = useState(false);
+  const [questions, setQuestions] = useState(MOCK_QUESTIONS);
+  const [staffList] = useState(MOCK_STAFF);
+  const [toasts, setToasts] = useState([]);
+
+  // FIX 1: All inner-component state lifted to App so it survives re-renders.
+  // Previously, FeedView and QuestionDetailView were inner functions re-created on
+  // every App render, causing React to unmount/remount them and wipe their state.
+  const [askText, setAskText] = useState('');
+  const [askTopic, setAskTopic] = useState('General / Campus Life'); // FIX 5: controlled select
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiResponse, setAiResponse] = useState('');
+  const [replyText, setReplyText] = useState('');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  const showToast = (message, type = 'info') => {
+    const id = ++toastCount;
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
+  };
+
+  const useNavigate = (view, id = null) => {
+    setActiveView(view);
+    if (view === 'detail') {
+      setActiveQuestionId(id);
+      setReplyText(''); // reset reply box when opening a new thread
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const openStaffModal = (id) => {
+    setActiveStaffId(id);
+    setStaffModalOpen(true);
+  };
+
+  const handleAskAi = () => {
+    if (!askText) return showToast('Please type a question first', 'error');
+    setIsAiLoading(true);
+    setAiResponse('');
+    setTimeout(() => {
+      setIsAiLoading(false);
+      setAiResponse("Based on the university handbook: Focus on the past questions available at the faculty library and ensure you attend all practical sessions. Would you like to post this to the community?");
+    }, 1500);
+  };
+
+  const handleLike = (id) => {
+    if (!isLoggedIn) return showToast('Please sign in to like', 'error');
+    // FIX 2: Functional updater prevents stale closure — reads the latest questions
+    // array at call time instead of the captured snapshot from the render cycle.
+    setQuestions(prev => prev.map(q =>
+      q.id === id ? { ...q, likes: q.liked ? q.likes - 1 : q.likes + 1, liked: !q.liked } : q
+    ));
+  };
+
+  const submitReply = () => {
+    if (!isLoggedIn) return showToast('Please sign in to reply', 'error');
+    if (!replyText.trim()) return;
+    const newReply = { id: Date.now(), user: 'Amina Yusuf', isStaff: false, time: 'Just now', content: replyText };
+    // FIX 2: Same functional updater fix for submitReply.
+    setQuestions(prev => prev.map(q =>
+      q.id === activeQuestionId
+        ? { ...q, replies: [...q.replies, newReply], answers: q.answers + 1 }
+        : q
+    ));
+    setReplyText('');
+    showToast('Reply posted successfully', 'success');
+  };
+
+  // FIX 4: filteredQuestions derived directly from live `questions` state at render time.
+  const filteredQuestions = selectedTopic === 'All Questions'
+    ? questions
+    : questions.filter(q => q.tags.includes(selectedTopic) || q.dept.includes(selectedTopic));
+
+  const Topbar = () => (
+    <nav style={{
+      position: 'fixed', top: 0, left: 0, right: 0, height: 'var(--topbar-h)', zIndex: 1000,
+      background: theme === 'dark' ? 'rgba(6, 18, 32, 0.95)' : 'rgba(11, 31, 53, 0.95)',
+      backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.08)',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }} onClick={() => useNavigate('feed')}>
+          <div style={{ width: 40, height: 40, background: 'linear-gradient(135deg, var(--brand-gold), #b89228)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--brand-navy)', boxShadow: 'var(--shadow-glow)' }}>AT</div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ color: '#fff', fontWeight: 700, fontSize: 18, lineHeight: 1.1 }}>ATBUConnect</span>
+            <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: 500 }}>Abubakar Tafawa Balewa Univ.</span>
+          </div>
+        </div>
+      </div>
+      <div style={{ flex: 1, maxWidth: 480, margin: '0 24px', position: 'relative' }}>
+        <input type="text" placeholder="Search questions, topics, or staff..." style={{ width: '100%', height: 44, padding: '0 20px 0 44px', borderRadius: 24, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 14 }} />
+        <Search style={{ position: 'absolute', left: 16, top: 12, color: 'rgba(255,255,255,0.4)' }} size={18} />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')} style={{ color: '#fff', padding: 8, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }}>
+          {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+        </button>
+        {!isLoggedIn ? (
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button onClick={() => { setAuthTab('login'); setAuthModalOpen(true); }} style={{ color: '#fff', fontWeight: 600, padding: '0 16px' }}>Sign In</button>
+            <button onClick={() => { setAuthTab('register'); setAuthModalOpen(true); }} className="btn-primary">Join Free</button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+            <button style={{ color: '#fff', position: 'relative' }}>
+              <Bell size={20} />
+              <div style={{ position: 'absolute', top: -2, right: -2, width: 8, height: 8, background: 'var(--status-error)', borderRadius: '50%' }} />
+            </button>
+            <div onClick={() => useNavigate('profile')} style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--brand-gold)', color: 'var(--brand-navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, cursor: 'pointer' }}>AY</div>
+          </div>
+        )}
+      </div>
+    </nav>
+  );
+
+  const LeftSidebar = () => (
+    <aside className="left-sidebar" style={{ position: 'sticky', top: 'calc(var(--topbar-h) + 32px)' }}>
+      <div className="card" style={{ marginBottom: 24, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface-alt)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase' }}>Browse Topics</span>
+        </div>
+        <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {MOCK_TOPICS.map(t => (
+            <button key={t.name} onClick={() => { setSelectedTopic(t.name); useNavigate('feed'); }}
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 8, background: selectedTopic === t.name && activeView === 'feed' ? 'var(--brand-gold-dim)' : 'transparent', color: selectedTopic === t.name && activeView === 'feed' ? 'var(--brand-gold)' : 'var(--text-muted)', fontWeight: selectedTopic === t.name && activeView === 'feed' ? 600 : 500, transition: 'all 0.2s', textAlign: 'left' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: t.color }} />
+                {t.name}
+              </div>
+              <span style={{ fontSize: 11, background: selectedTopic === t.name ? 'var(--bg-surface)' : 'var(--bg-surface-alt)', padding: '2px 8px', borderRadius: 12, color: selectedTopic === t.name ? 'var(--brand-gold)' : 'var(--text-faint)' }}>{t.count}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="card">
+        <button onClick={() => useNavigate('apply')} style={{ width: '100%', padding: 16, display: 'flex', alignItems: 'center', gap: 12, color: 'var(--text-main)', fontWeight: 600, transition: 'background 0.2s' }} onMouseOver={e => e.currentTarget.style.background = 'var(--bg-surface-hover)'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
+          <ShieldCheck size={20} color="var(--brand-gold)" />
+          Apply for Staff Access
+        </button>
+      </div>
+    </aside>
+  );
+
+  const RightSidebar = () => (
+    <aside className="right-sidebar" style={{ position: 'sticky', top: 'calc(var(--topbar-h) + 32px)' }}>
+      <div className="card" style={{ marginBottom: 24 }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface-alt)' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase' }}>Trending Right Now</span>
+        </div>
+        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {MOCK_TRENDING.map(t => (
+            <div key={t.rank} style={{ display: 'flex', gap: 12, cursor: 'pointer' }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--border-strong)', lineHeight: 1 }}>{t.rank}</div>
+              <div>
+                <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4, lineHeight: 1.4, color: 'var(--text-main)' }}>{t.title}</h4>
+                <div style={{ fontSize: 11, color: 'var(--text-faint)' }}>{t.meta}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ background: 'linear-gradient(145deg, var(--brand-navy), var(--brand-navy-dark))', borderRadius: 'var(--radius-lg)', padding: 24, textAlign: 'center', color: '#fff', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: -50, right: -50, width: 100, height: 100, background: 'rgba(212,175,55,0.2)', borderRadius: '50%', filter: 'blur(20px)' }} />
+        <Briefcase size={32} color="var(--brand-gold)" style={{ margin: '0 auto 16px' }} />
+        <h3 style={{ fontSize: 18, marginBottom: 8, color: '#fff' }}>Are you ATBU Staff?</h3>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 20, lineHeight: 1.5 }}>Join as a verified lecturer to guide students and share authoritative answers.</p>
+        <button onClick={() => useNavigate('apply')} style={{ width: '100%', padding: 12, background: 'var(--brand-gold)', color: 'var(--brand-navy-dark)', fontWeight: 700, borderRadius: 8, transition: 'transform 0.2s' }} onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseOut={e => e.currentTarget.style.transform = 'none'}>
+          Apply Now
+        </button>
+      </div>
+    </aside>
+  );
+
+  // ─── FEED VIEW ──────────────────────────────────────────────────────────────
+  // FIX 1 continued: askText, isAiLoading, aiResponse, askTopic are now App-level state.
+  // This component no longer owns any useState — it reads/writes via props-style closures.
+  const FeedPage = () => (
+    <div className="animate-fade-up">
+      <div className="card" style={{ marginBottom: 32, overflow: 'hidden' }}>
+        <div style={{ background: `linear-gradient(135deg, var(--brand-navy), var(--brand-navy-light))`, padding: 24, position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', right: -20, top: -40, width: 150, height: 150, background: 'radial-gradient(circle, rgba(212,175,55,0.2) 0%, transparent 70%)' }} />
+          <h2 style={{ fontSize: 22, color: '#fff', marginBottom: 4 }}>Have a question? Ask the community.</h2>
+          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>Get reliable answers from ATBU lecturers and peers.</p>
+        </div>
+        <div style={{ padding: 24 }}>
+          <textarea
+            value={askText}
+            onChange={e => setAskText(e.target.value)}
+            placeholder="What's on your mind? Be specific..."
+            className="input-field" style={{ minHeight: 100, resize: 'vertical', marginBottom: 16 }}
+          />
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* FIX 5: select is now a controlled element bound to askTopic state */}
+            <select
+              className="input-field"
+              style={{ flex: 1, minWidth: 200, height: 44 }}
+              value={askTopic}
+              onChange={e => setAskTopic(e.target.value)}
+            >
+              <option>General / Campus Life</option>
+              <option>Computing</option>
+              <option>Engineering</option>
+              <option>Medicine</option>
+            </select>
+            <button className="btn-primary" onClick={handleAskAi} style={{ height: 44, background: 'linear-gradient(135deg, var(--brand-gold), #b89228)' }}>
+              <Sparkles size={18} /> Ask ATBUb AI
+            </button>
+          </div>
+
+          {(isAiLoading || aiResponse) && (
+            <div style={{ marginTop: 20, padding: 20, borderRadius: 'var(--radius-md)', background: 'var(--brand-gold-dim)', border: '1px solid rgba(212,175,55,0.3)', animation: 'popIn 0.4s var(--ease-spring)' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--brand-gold)', marginBottom: 12 }}>
+                {isAiLoading
+                  ? <div style={{ width: 8, height: 8, background: 'var(--brand-gold)', borderRadius: '50%', animation: 'pulseGlow 1s infinite' }} />
+                  : <Sparkles size={14} />}
+                {isAiLoading ? 'AI is analyzing...' : 'ATBUb AI Suggestion'}
+              </div>
+              <div style={{ fontSize: 14, color: 'var(--text-main)', lineHeight: 1.6 }}>{aiResponse}</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, overflowX: 'auto', paddingBottom: 4 }}>
+        {['Trending', 'Most Recent', 'Unanswered', 'Answered'].map((f, i) => (
+          <button key={f} style={{ padding: '6px 16px', borderRadius: 20, fontSize: 13, fontWeight: 600, background: i === 0 ? 'var(--text-main)' : 'var(--bg-surface)', color: i === 0 ? 'var(--bg-surface)' : 'var(--text-muted)', border: `1px solid ${i === 0 ? 'var(--text-main)' : 'var(--border-subtle)'}`, whiteSpace: 'nowrap' }}>
+            {f}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {filteredQuestions.map((q, i) => (
+          <div key={q.id} className="card animate-fade-up" style={{ padding: 24, animationDelay: `${i * 0.1}s` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 44, height: 44, borderRadius: '50%', background: q.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700 }}>{q.avatar}</div>
+                <div>
+                  <h4 style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {q.user} {q.isStaff && <CheckCircle size={14} color="var(--brand-gold)" />}
+                  </h4>
+                  <p style={{ fontSize: 12, color: 'var(--text-faint)' }}>{q.dept} • {q.time}</p>
+                </div>
+              </div>
+              <div style={{ padding: '4px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', background: q.answered ? 'var(--status-success-bg)' : 'var(--bg-surface-alt)', color: q.answered ? 'var(--status-success)' : 'var(--text-faint)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                {q.answered ? 'Answered' : 'Unanswered'}
+              </div>
+            </div>
+            <h3 onClick={() => useNavigate('detail', q.id)} style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, cursor: 'pointer', color: 'var(--text-main)', transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = 'var(--brand-gold)'} onMouseOut={e => e.currentTarget.style.color = 'var(--text-main)'}>
+              {q.title}
+            </h3>
+            <p style={{ fontSize: 15, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 16, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{q.preview}</p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+              {q.tags.map(t => <span key={t} style={{ padding: '4px 12px', borderRadius: 6, background: 'var(--bg-surface-alt)', color: 'var(--text-muted)', fontSize: 12, fontWeight: 500 }}>{t}</span>)}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'flex', gap: 16 }}>
+                <button onClick={() => handleLike(q.id)} style={{ display: 'flex', alignItems: 'center', gap: 6, color: q.liked ? 'var(--status-error)' : 'var(--text-muted)', fontSize: 13, fontWeight: 600 }}>
+                  <ThumbsUp size={18} fill={q.liked ? 'currentColor' : 'none'} /> {q.likes}
+                </button>
+                <button onClick={() => useNavigate('detail', q.id)} style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', fontSize: 13, fontWeight: 600 }}>
+                  <MessageSquare size={18} /> {q.answers} Comments
+                </button>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-faint)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Eye size={14} /> {q.views} Views
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+  
+
+  // ─── STAFF VIEW ──────────────────────────────────────────────────────────────
+  
+  const StaffPage = () => (
+    <div className="animate-fade-up">
+      <div style={{ display: 'flex', gap: 8, marginBottom: 24, overflowX: 'auto', paddingBottom: 4 }}>
+        {['All Departments', 'Computing', 'Engineering', 'Sciences', 'Medicine'].map((f, i) => (
+          <button key={f} style={{ padding: '6px 16px', borderRadius: 20, fontSize: 13, fontWeight: 600, background: i === 0 ? 'var(--text-main)' : 'var(--bg-surface)', color: i === 0 ? 'var(--bg-surface)' : 'var(--text-muted)', border: `1px solid ${i === 0 ? 'var(--text-main)' : 'var(--border-subtle)'}`, whiteSpace: 'nowrap' }}>
+            {f}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 20 }}>
+        {staffList.map((s, i) => (
+          <div key={s.id} className="card animate-fade-up" style={{ textAlign: 'center', overflow: 'hidden', animationDelay: `${i * 0.05}s` }}>
+            <div style={{ height: 60, background: `linear-gradient(135deg, var(--brand-navy-light), var(--brand-navy))` }} />
+            <div style={{ position: 'relative', width: 70, height: 70, margin: '-35px auto 12px' }}>
+              <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 700, color: '#fff', border: '4px solid var(--bg-surface)', boxShadow: 'var(--shadow-sm)' }}>
+                {s.avatar}
+              </div>
+              {s.online && <div style={{ position: 'absolute', bottom: 4, right: 4, width: 14, height: 14, background: 'var(--status-success)', borderRadius: '50%', border: '2px solid var(--bg-surface)' }} />}
+            </div>
+            <div style={{ padding: '0 20px 24px' }}>
+              <h4 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: 'var(--text-main)' }}>{s.name}</h4>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>{s.role}</p>
+              <span style={{ display: 'inline-block', padding: '4px 10px', background: 'var(--bg-surface-alt)', borderRadius: 6, fontSize: 11, fontWeight: 600, color: 'var(--text-main)', marginBottom: 16 }}>{s.dept}</span>
+              <button onClick={() => openStaffModal(s.id)} style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-main)', fontSize: 13, fontWeight: 600, transition: 'all 0.2s' }} onMouseOver={e => { e.currentTarget.style.background = 'var(--brand-gold)'; e.currentTarget.style.borderColor = 'var(--brand-gold)'; e.currentTarget.style.color = 'var(--brand-navy-dark)'; }} onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-main)'; }}>
+                View Profile
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // ─── QUESTION DETAIL VIEW ────────────────────────────────────────────────────
+  // FIX 1 continued: replyText is now App-level state, not local to this component.
+  const QuestionDetailPage = () => {
+    const q = questions.find(item => item.id === activeQuestionId);
+    if (!q) return <div style={{ color: 'var(--text-muted)' }}>Question not found.</div>;
+
+    return (
+      <div className="animate-fade-up">
+        <button onClick={() => useNavigate('feed')} style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 20 }}>
+          <ArrowLeft size={18} /> Back to Feed
+        </button>
+
+        <div className="card" style={{ padding: 32, marginBottom: 32 }}>
+          <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: q.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 18, fontWeight: 700, flexShrink: 0 }}>{q.avatar}</div>
+            <div>
+              <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-main)', marginBottom: 8, lineHeight: 1.3 }}>{q.title}</h1>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, color: 'var(--text-muted)' }}>
+                <span style={{ fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {q.user} {q.isStaff && <CheckCircle size={14} color="var(--brand-gold)" />}
+                </span>
+                <span>•</span><span>{q.dept}</span><span>•</span><span>{q.time}</span>
+              </div>
+            </div>
+          </div>
+          <div style={{ fontSize: 16, color: 'var(--text-main)', lineHeight: 1.7, marginBottom: 24 }}>{q.content}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 20, borderTop: '1px solid var(--border-subtle)' }}>
+            <button className="btn-primary" style={{ background: 'var(--bg-surface-alt)', color: 'var(--text-main)', border: '1px solid var(--border-strong)' }}>
+              <ThumbsUp size={16} /> Helpful ({q.likes})
+            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {q.tags.map(t => <span key={t} style={{ padding: '4px 12px', borderRadius: 6, background: 'var(--brand-gold-dim)', color: 'var(--brand-gold)', fontSize: 12, fontWeight: 600 }}>{t}</span>)}
+            </div>
+          </div>
+        </div>
+
+        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 20, color: 'var(--text-main)' }}>{q.answers} Answers</h3>
+
+        <div style={{ position: 'relative' }}>
+          {q.replies.length > 0 && <div className="thread-line" />}
+          {q.replies.map((reply, i) => (
+            <div key={reply.id} className="reply-card animate-fade-up" style={{ animationDelay: `${i * 0.1}s` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: reply.isStaff ? 'var(--brand-gold)' : 'var(--bg-surface)', border: '2px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: reply.isStaff ? 'var(--brand-navy)' : 'var(--text-main)' }}>
+                    {reply.user.split(' ').map(n => n[0]).join('')}
+                  </div>
+                  <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {reply.user} {reply.isStaff && <CheckCircle size={14} color="var(--brand-gold)" />}
+                  </span>
+                </div>
+                <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>{reply.time}</span>
+              </div>
+              <p style={{ fontSize: 15, color: 'var(--text-main)', lineHeight: 1.6 }}>{reply.content}</p>
+            </div>
+          ))}
+
+          <div className="reply-card" style={{ marginTop: 24, borderStyle: 'dashed', background: 'var(--bg-surface)' }}>
+            <textarea
+              value={replyText}
+              onChange={e => setReplyText(e.target.value)}
+              placeholder="Write your answer..."
+              className="input-field" style={{ minHeight: 80, marginBottom: 12 }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn-primary" onClick={submitReply}>Post Answer</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── APPLY STAFF VIEW ────────────────────────────────────────────────────────
+  const ApplyPage = () => (
+    <div className="animate-fade-up" style={{ maxWidth: 600, margin: '0 auto' }}>
+      <div className="card" style={{ overflow: 'hidden' }}>
+        <div style={{ background: 'linear-gradient(135deg, var(--brand-navy), var(--brand-navy-light))', padding: 32, textAlign: 'center', color: '#fff' }}>
+          <ShieldCheck size={48} color="var(--brand-gold)" style={{ margin: '0 auto 16px' }} />
+          <h2 style={{ fontSize: 24, marginBottom: 8 }}>Apply for Staff Verification</h2>
+          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)' }}>Get a verified badge to provide authoritative answers and guide students directly.</p>
+        </div>
+        <div style={{ padding: 32 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--text-main)' }}>Full Name & Title</label>
+              <input type="text" className="input-field" placeholder="e.g. Dr. Sarah Ibrahim" />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--text-main)' }}>Department</label>
+                <select className="input-field"><option>Computing</option><option>Engineering</option><option>Medicine</option></select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--text-main)' }}>Staff ID Number</label>
+                <input type="text" className="input-field" placeholder="ATBU/STF/..." />
+              </div>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--text-main)' }}>Upload University ID (PDF/JPG)</label>
+              <div style={{ border: '2px dashed var(--border-strong)', borderRadius: 'var(--radius-md)', padding: 32, textAlign: 'center', cursor: 'pointer', background: 'var(--bg-surface-hover)' }}>
+                <Upload size={24} color="var(--text-muted)" style={{ margin: '0 auto 12px' }} />
+                <p style={{ fontSize: 14, color: 'var(--text-main)', fontWeight: 600 }}>Click to upload or drag and drop</p>
+                <p style={{ fontSize: 12, color: 'var(--text-faint)' }}>Max file size: 5MB</p>
+              </div>
+            </div>
+            <button className="btn-primary" style={{ width: '100%', height: 48, fontSize: 16, marginTop: 8 }} onClick={() => { showToast('Application submitted for review!', 'success'); useNavigate('feed'); }}>
+              Submit Application
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ─── PROFILE VIEW ────────────────────────────────────────────────────────────
+  const ProfilePage = () => {
+    if (!isLoggedIn) return <div style={{ color: 'var(--text-muted)' }}>Please sign in to view profile.</div>;
+    return (
+      <div className="animate-fade-up">
+        <div className="card" style={{ padding: 32, display: 'flex', alignItems: 'center', gap: 24, marginBottom: 32 }}>
+          <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'var(--brand-gold)', color: 'var(--brand-navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 700 }}>AY</div>
+          <div>
+            <h2 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-main)', marginBottom: 4 }}>Amina Yusuf</h2>
+            <p style={{ fontSize: 15, color: 'var(--text-muted)' }}>Computer Science, 300L • U21CS1024</p>
+          </div>
+          <button className="btn-primary" style={{ marginLeft: 'auto', background: 'var(--bg-surface-alt)', color: 'var(--text-main)', border: '1px solid var(--border-strong)' }} onClick={() => { setIsLoggedIn(false); useNavigate('feed'); }}>
+            <LogOut size={16} /> Sign Out
+          </button>
+        </div>
+        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 20, color: 'var(--text-main)' }}>Your Activity</h3>
+        <div className="card" style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
+          <Bookmark size={48} strokeWidth={1} style={{ margin: '0 auto 16px', opacity: 0.5 }} />
+          <p>You haven't asked any questions or bookmarked anything yet.</p>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── MODALS ──────────────────────────────────────────────────────────────────
+  // FIX 3: Modals now use visibility+opacity (via CSS classes) instead of
+  // display:none. This keeps them in the render tree so the opacity/transform
+  // transitions can actually animate in and out. display:none collapses the
+  // element immediately, making CSS transitions impossible.
+  const activeStaff = staffList.find(s => s.id === activeStaffId);
+
+  return (
+    <>
+      {GlobalStyles()}
+      {Topbar()}
+      <div className="app-container">
+        {LeftSidebar()}
+        <main style={{ minWidth: 0 }}>
+          {(activeView === 'feed' || activeView === 'staff') && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 24, background: 'var(--bg-surface)', padding: 6, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-sm)' }}>
+              <button onClick={() => useNavigate('feed')} style={{ flex: 1, padding: 10, borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s', background: activeView === 'feed' ? (theme === 'dark' ? 'var(--brand-gold)' : 'var(--brand-navy)') : 'transparent', color: activeView === 'feed' ? (theme === 'dark' ? 'var(--brand-navy-dark)' : '#fff') : 'var(--text-muted)' }}>
+                <MessageSquare size={18} /> Question Feed
+              </button>
+              <button onClick={() => useNavigate('staff')} style={{ flex: 1, padding: 10, borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s', background: activeView === 'staff' ? (theme === 'dark' ? 'var(--brand-gold)' : 'var(--brand-navy)') : 'transparent', color: activeView === 'staff' ? (theme === 'dark' ? 'var(--brand-navy-dark)' : '#fff') : 'var(--text-muted)' }}>
+                <Briefcase size={18} /> Staff Directory
+              </button>
+            </div>
+          )}
+          <Routes>
+  <Route path="/"            element={<FeedPage />} />
+  <Route path="/staff"       element={<StaffPage />} />
+  <Route path="/question/:id" element={<QuestionDetailPage />} />
+  <Route path="/apply"       element={<ApplyPage />} />
+  <Route path="/profile"     element={<ProfilePage />} />
+</Routes>
+        </main>
+        {RightSidebar()}
+      </div>
+
+      {/* Auth Modal — FIX 3: visibility/opacity toggling, not display */}
+      <div
+        className={`modal-overlay ${authModalOpen ? 'visible' : 'hidden'}`}
+        onClick={e => e.target === e.currentTarget && setAuthModalOpen(false)}
+      >
+        <div className="modal-box" style={{ background: 'var(--bg-surface)', width: '100%', maxWidth: 440, borderRadius: 'var(--radius-xl)', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <div style={{ background: 'linear-gradient(135deg, var(--brand-navy), var(--brand-navy-light))', padding: '32px 24px 24px', textAlign: 'center', position: 'relative', color: '#fff' }}>
+            <button onClick={() => setAuthModalOpen(false)} style={{ position: 'absolute', top: 16, right: 16, color: '#fff', background: 'rgba(255,255,255,0.1)', borderRadius: '50%', padding: 8 }}><X size={16} /></button>
+            <h2 style={{ fontSize: 24, marginBottom: 4 }}>ATBUConnect</h2>
+            <p style={{ fontSize: 14, opacity: 0.8 }}>Empowering the university community.</p>
+          </div>
+          <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)' }}>
+            {['login', 'register'].map(tab => (
+              <button key={tab} onClick={() => setAuthTab(tab)} style={{ flex: 1, padding: 16, fontSize: 15, fontWeight: 600, color: authTab === tab ? 'var(--brand-gold)' : 'var(--text-muted)', borderBottom: `2px solid ${authTab === tab ? 'var(--brand-gold)' : 'transparent'}`, textTransform: 'capitalize' }}>
+                {tab === 'login' ? 'Sign In' : 'Create Account'}
+              </button>
+            ))}
+          </div>
+          <div style={{ padding: '32px 24px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {authTab === 'register' && (
+                <div style={{ display: 'flex', gap: 16 }}>
+                  <input type="text" placeholder="First Name" className="input-field" />
+                  <input type="text" placeholder="Last Name" className="input-field" />
+                </div>
+              )}
+              <input type="text" placeholder="Email or Matric Number" className="input-field" />
+              <input type="password" placeholder="Password" className="input-field" />
+              <button className="btn-primary" style={{ height: 48, fontSize: 16, marginTop: 8 }} onClick={() => { setIsLoggedIn(true); setAuthModalOpen(false); showToast('Welcome to ATBUConnect!', 'success'); }}>
+                {authTab === 'login' ? 'Sign In' : 'Create Account'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Staff Profile Modal — FIX 3: same visibility/opacity pattern */}
+      <div
+        className={`modal-overlay ${staffModalOpen && activeStaff ? 'visible' : 'hidden'}`}
+        onClick={e => e.target === e.currentTarget && setStaffModalOpen(false)}
+      >
+        {activeStaff && (
+          <div className="modal-box" style={{ background: 'var(--bg-surface)', width: '100%', maxWidth: 500, borderRadius: 'var(--radius-xl)', overflow: 'hidden' }}>
+            <div style={{ height: 100, background: `linear-gradient(135deg, ${activeStaff.bg}, var(--brand-navy))`, position: 'relative' }}>
+              <button onClick={() => setStaffModalOpen(false)} style={{ position: 'absolute', top: 16, right: 16, color: '#fff', background: 'rgba(0,0,0,0.3)', borderRadius: '50%', padding: 8 }}><X size={16} /></button>
+            </div>
+            <div style={{ padding: '0 32px 32px', position: 'relative', marginTop: -40 }}>
+              <div style={{ width: 80, height: 80, borderRadius: '50%', background: activeStaff.bg, border: '4px solid var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 700, color: '#fff', marginBottom: 16 }}>
+                {activeStaff.avatar}
+              </div>
+              <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-main)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                {activeStaff.name} <CheckCircle size={18} color="var(--brand-gold)" />
+              </h2>
+              <p style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 16 }}>{activeStaff.role} • {activeStaff.dept}</p>
+              <div style={{ background: 'var(--bg-surface-hover)', borderRadius: 'var(--radius-md)', padding: 16, marginBottom: 24 }}>
+                <p style={{ fontSize: 14, color: 'var(--text-main)', lineHeight: 1.6, fontStyle: 'italic' }}>"{activeStaff.bio}"</p>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <MapPin size={20} color="var(--brand-gold)" style={{ marginTop: 2 }} />
+                  <div>
+                    <span style={{ display: 'block', fontSize: 12, color: 'var(--text-faint)', fontWeight: 600 }}>OFFICE</span>
+                    <span style={{ fontSize: 14, color: 'var(--text-main)' }}>{activeStaff.office}</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <Clock size={20} color="var(--brand-gold)" style={{ marginTop: 2 }} />
+                  <div>
+                    <span style={{ display: 'block', fontSize: 12, color: 'var(--text-faint)', fontWeight: 600 }}>HOURS</span>
+                    <span style={{ fontSize: 14, color: 'var(--text-main)' }}>{activeStaff.hours}</span>
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button className="btn-primary" style={{ flex: 1 }} onClick={() => {
+                  if (!isLoggedIn) { showToast('Sign in to message staff', 'error'); setStaffModalOpen(false); setAuthModalOpen(true); }
+                  else { showToast('Message feature coming soon!', 'info'); }
+                }}>
+                  <Mail size={18} /> Send Direct Message
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Toast Notifications */}
+      <div style={{ position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)', zIndex: 3000, display: 'flex', flexDirection: 'column', gap: 10, pointerEvents: 'none' }}>
+        {toasts.map(t => (
+          <div key={t.id} style={{ background: t.type === 'success' ? 'var(--status-success)' : t.type === 'error' ? 'var(--status-error)' : 'var(--text-main)', color: '#fff', padding: '12px 24px', borderRadius: 30, fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10, boxShadow: 'var(--shadow-lg)', animation: 'popIn 0.3s var(--ease-spring)' }}>
+            {t.type === 'success' && <CheckCircle size={18} />}
+            {t.message}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+
+
+
+ {name:"Computing",color:"#6366F1",count:"1.2k"},
+  {name:"Engineering",color:"#3B82F6",count:"842"},
+  {name:"Sciences",color:"#10B981",count:"654"},
+  {name:"Medicine",color:"#EF4444",count:"412"},
+  {name:"Management",color:"#8B5CF6",count:"398"},
+  {name:"Medical Sciences",color:"#F59E0B",count:"210"},
+  {name:"Education",color:"#EC4899",count:"195"},
+  {name:"Agriculture",color:"#84CC16",count:"178"},
+  {name:"Campus Life",color:"#14B8A6",count:"890"},
+  {name:"Environmental Technology",color:"#14B8A6",count:"890"},
+  {name:"Veterinary Medicine",color:"#14B8A6",count:"890"}

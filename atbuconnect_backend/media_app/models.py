@@ -1,0 +1,50 @@
+from django.conf import settings
+from django.db import models
+
+User = settings.AUTH_USER_MODEL
+
+
+class MediaPost(models.Model):
+    class Type(models.TextChoices):
+        PHOTO = "photo", "Photo"
+        VIDEO = "video", "Video"
+
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name="media_posts")
+    type = models.CharField(max_length=5, choices=Type.choices, default=Type.PHOTO)
+    thumb = models.ImageField(upload_to="media_posts/", blank=True, null=True)
+    video_url = models.URLField(blank=True, help_text="Only used when type=video")
+    caption = models.CharField(max_length=280, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.type} by {self.author} @ {self.created_at:%Y-%m-%d}"
+
+    @property
+    def likes(self):
+        return self.likes_set.count()
+
+    @property
+    def comments_count(self):
+        return self.comments.count()
+
+
+class MediaLike(models.Model):
+    post = models.ForeignKey(MediaPost, on_delete=models.CASCADE, related_name="likes_set")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="media_likes")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("post", "user")
+
+
+class MediaComment(models.Model):
+    post = models.ForeignKey(MediaPost, on_delete=models.CASCADE, related_name="comments")
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name="media_comments")
+    body = models.CharField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]

@@ -1,0 +1,233 @@
+"""
+Django settings for the ATBUConnect backend.
+"""
+
+import os
+from datetime import timedelta
+from pathlib import Path
+
+import environ
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+env = environ.Env(DEBUG=(bool, True))
+environ.Env.read_env(BASE_DIR / ".env")
+
+SECRET_KEY = env("SECRET_KEY", default="django-insecure-change-me-in-production")
+DEBUG = env.bool("DEBUG", default=True)
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["*"])
+
+
+# ── Applications ─────────────────────────────────────────────
+INSTALLED_APPS = [
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+
+    # 3rd party
+    "rest_framework",
+    "rest_framework_simplejwt",
+    "corsheaders",
+    "django_filters",
+
+    # local apps
+    "accounts",
+    "departments",
+    "questions",
+    "staffapp",
+    "media_app",
+    "notifications",
+    "library",
+    "communities",
+    "chat",
+    "advertising",
+]
+
+AUTH_USER_MODEL = "accounts.User"
+
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "config.middleware.SecurityHeadersMiddleware",
+]
+
+ROOT_URLCONF = "config.urls"
+
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ],
+        },
+    },
+]
+
+WSGI_APPLICATION = "config.wsgi.application"
+
+
+# ── Database ─────────────────────────────────────────────────
+# Defaults to SQLite if DATABASE_URL is unset. For local MySQL, set in .env:
+#   DATABASE_URL=mysql://root:yourpassword@127.0.0.1:3306/atbuconnect
+DATABASES = {
+    "default": env.db("DATABASE_URL", default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}")
+}
+
+if DATABASES["default"]["ENGINE"] == "django.db.backends.mysql":
+    DATABASES["default"]["OPTIONS"] = {
+        "charset": "utf8mb4",
+        "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
+    }
+
+
+# ── Password validation ─────────────────────────────────────
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+
+
+# ── I18N ──────────────────────────────────────────────────────
+LANGUAGE_CODE = "en-us"
+TIME_ZONE = "UTC"
+USE_I18N = True
+USE_TZ = True
+
+
+# ── Static & media ───────────────────────────────────────────
+STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+# ── DRF ───────────────────────────────────────────────────────
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticatedOrReadOnly",
+    ),
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 20,
+    "DEFAULT_FILTER_BACKENDS": ("django_filters.rest_framework.DjangoFilterBackend",),
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=14),
+    "ROTATE_REFRESH_TOKENS": True,
+}
+
+
+# ── CORS ──────────────────────────────────────────────────────
+# During development allow the Vite dev server(s); tighten for production.
+CORS_ALLOWED_ORIGINS = env.list(
+    "CORS_ALLOWED_ORIGINS",
+    default=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"],
+)
+CORS_ALLOW_CREDENTIALS = True
+
+
+# ── Email (staff application notifications, password resets, verification) ──
+EMAIL_BACKEND = env(
+    "EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend"
+)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="CampusNetwork <no-reply@campusnetwork.edu.ng>")
+FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:5173")
+
+# Optional FormSubmit integration for administrative / SUG approval notifications only.
+# Password reset codes and email verification links NEVER use FormSubmit.
+FORMSUBMIT_ENABLED = env.bool("FORMSUBMIT_ENABLED", default=False)
+FORMSUBMIT_ENDPOINT = env("FORMSUBMIT_ENDPOINT", default="https://formsubmit.co/ajax")
+
+# ── Verified Student Entitlements ─────────────────────────────────────────────
+ORDINARY_MAX_POST_WORDS = env.int("ORDINARY_MAX_POST_WORDS", default=300)
+VERIFIED_MAX_POST_WORDS = env.int("VERIFIED_MAX_POST_WORDS", default=1200)
+USERNAME_COOLDOWN_DAYS = env.int("USERNAME_COOLDOWN_DAYS", default=14)
+VERIFIED_COMMENT_BOOST = env.float("VERIFIED_COMMENT_BOOST", default=1.5)
+
+# ── Advertising / Future Payment Gateway (explicitly disabled) ────────────────
+AD_PAYMENTS_ENABLED = env.bool("AD_PAYMENTS_ENABLED", default=False)
+PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", default="")
+
+# ── Throttling (sensitive endpoints) ──────────────────────────────────────────
+REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {
+    "applications": env("APPLICATIONS_THROTTLE", default="10/hour"),
+    "auth_login": env("AUTH_LOGIN_THROTTLE", default="20/minute"),
+    "auth_register": env("AUTH_REGISTER_THROTTLE", default="10/hour"),
+    "password_reset": env("PASSWORD_RESET_THROTTLE", default="10/hour"),
+    "email_verify": env("EMAIL_VERIFY_THROTTLE", default="10/hour"),
+    "ad_tracking": env("AD_TRACKING_THROTTLE", default="120/minute"),
+}
+
+# ── Production Transport Security (automatically enforced when DEBUG=False) ───
+if not DEBUG:
+    SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=31536000)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# ── Uploads ────────────────────────────────────────────────────
+# Django buffers small uploads in memory and streams bigger ones to disk; these caps
+# reject oversized request bodies early. Per-type limits live in questions.media_validation
+# (images 10 MB, video 100 MB / 5 min) and library.conf (PDF 15 MB).
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # non-file form fields
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
+POST_MAX_IMAGE_BYTES = env.int("POST_MAX_IMAGE_BYTES", default=10 * 1024 * 1024)
+POST_MAX_VIDEO_BYTES = env.int("POST_MAX_VIDEO_BYTES", default=100 * 1024 * 1024)
+POST_MAX_VIDEO_SECONDS = env.int("POST_MAX_VIDEO_SECONDS", default=5 * 60)
+
+# ── PDF library ───────────────────────────────────────────────
+LIBRARY_MAX_PDF_BYTES = env.int("LIBRARY_MAX_PDF_BYTES", default=15 * 1024 * 1024)
+# Where PDFs are stored. On hosts with an ephemeral disk (Railway/Heroku/Render without a
+# volume) point this at a mounted persistent volume, or set LIBRARY_STORAGE to a private
+# object-storage class. It must NOT be under MEDIA_ROOT.
+LIBRARY_PRIVATE_ROOT = env("LIBRARY_PRIVATE_ROOT", default=str(BASE_DIR / "private_media"))
+LIBRARY_STORAGE = env("LIBRARY_STORAGE", default="") or None
+LIBRARY_REQUIRE_LOGIN_TO_BROWSE = env.bool("LIBRARY_REQUIRE_LOGIN_TO_BROWSE", default=True)
+LIBRARY_REQUIRE_LOGIN_TO_DOWNLOAD = env.bool("LIBRARY_REQUIRE_LOGIN_TO_DOWNLOAD", default=True)
+
+# ── Google sign-in (inactive until a client id is set; needs `pip install google-auth`) ──
+GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", default="")
+
+# ── Optional S3-compatible storage for post images/videos ─────────────────────
+# Off by default. Needs `pip install django-storages boto3` and AWS_* / bucket env vars.
+# NOT verified here (no bucket available) - test on staging before relying on it.
+if env.bool("USE_S3_MEDIA", default=False):  # pragma: no cover
+    INSTALLED_APPS += ["storages"]
+    STORAGES = {
+        "default": {"BACKEND": "storages.backends.s3.S3Storage"},
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }
+    AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME")
+    AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME", default=None)
+    AWS_S3_ENDPOINT_URL = env("AWS_S3_ENDPOINT_URL", default=None)
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = False
+
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])

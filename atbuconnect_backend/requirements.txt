@@ -1,0 +1,17 @@
+Django>=5.0,<6.0
+djangorestframework>=3.15
+djangorestframework-simplejwt>=5.3
+django-cors-headers>=4.4
+django-filter>=24.2
+django-environ>=0.11
+Pillow>=10.4
+gunicorn>=22.0
+psycopg2-binary>=2.9
+PyMySQL>=1.1
+
+# PDF library: structural validation of uploaded PDFs (the app still works without it, with weaker checks)
+pypdf>=4.0
+
+# Optional, enable only if you use the matching feature:
+#   google-auth>=2.29            # "Continue with Google" (also set GOOGLE_CLIENT_ID)
+#   django-storages[s3]>=1.14    # S3-compatible media storage (also set USE_S3_MEDIA=true and AWS_* vars)

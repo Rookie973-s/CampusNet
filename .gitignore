@@ -1,0 +1,32 @@
+# Environment & secrets (NEVER commit these)
+.env
+.env.*
+!.env.example
+
+# Python / Django
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.db
+venv/
+.venv/
+env/
+staticfiles/
+atbuconnect_backend/media/
+atbuconnect_backend/private_media/
+
+# Node / Vite / React
+node_modules/
+dist/
+*.log
+
+# Archives & local temp files
+*.rar
+*.zip
+tail_main.txt
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
