@@ -1,7 +1,12 @@
+import { useEffect, useState } from "react";
+
 /** Consistent circular avatar: shows uploaded profile picture if available, else initials on bg. */
 export default function UserAvatar({
   src, av = "?", bg = "#3B82F6", size = 40, online = false, border = "2px solid var(--surf)", style = {}, alt = "",
 }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { setFailed(false); }, [src]);
+
   return (
     <span
       style={{
@@ -22,10 +27,11 @@ export default function UserAvatar({
         ...style,
       }}
     >
-      {src ? (
+      {src && !failed ? (
         <img
           src={src}
           alt={alt}
+          onError={() => setFailed(true)}
           style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover", display: "block" }}
         />
       ) : (

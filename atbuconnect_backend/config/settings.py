@@ -60,6 +60,11 @@ MIDDLEWARE = [
     "config.middleware.SecurityHeadersMiddleware",
 ]
 
+# Enable WhiteNoise automatically when installed (production Django Admin & DRF static files)
+import importlib.util as _importlib_util
+if _importlib_util.find_spec("whitenoise"):
+    MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
+
 ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [
@@ -111,8 +116,9 @@ USE_TZ = True
 
 
 # ── Static & media ───────────────────────────────────────────
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+WHITENOISE_USE_FINDERS = True
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"

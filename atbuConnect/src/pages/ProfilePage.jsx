@@ -50,6 +50,7 @@ function ProfilePage({ user, toast, onUserUpdate, onLogin, onLogout }) {
   // Email verification state
   const [verifyCode, setVerifyCode] = useState("");
   const [emailBusy, setEmailBusy] = useState(false);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
 
   // Followers / Following modal
   const [socialModal, setSocialModal] = useState(null); // null | "followers" | "following"
@@ -327,10 +328,20 @@ function ProfilePage({ user, toast, onUserUpdate, onLogin, onLogout }) {
               {user.matric && <span className="chip" style={{ cursor: "default" }}>{user.matric}</span>}
               {user.isVerifiedStaff && <span className="chip" style={{ cursor: "default" }}><Ic n="shield" s={12} /> Verified SUG / Staff</span>}
               {perm.can_upload && <span className="chip" style={{ cursor: "default" }}><Ic n="file" s={12} />{t("profile.classRep")}</span>}
-              <span className="chip" style={{ cursor: "default", color: user.emailVerified ? "#059669" : "#D97706" }}>
-                <Ic n={user.emailVerified ? "check" : "mail"} s={12} />
-                {user.emailVerified ? "Email Verified" : "Email Unverified"}
-              </span>
+              {user.emailVerified ? (
+                <span className="chip" style={{ cursor: "default", color: "#059669" }}>
+                  <Ic n="check" s={12} /> Email Verified
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="chip"
+                  style={{ color: "#D97706", borderColor: "rgba(217,119,6,.4)", cursor: "pointer" }}
+                  onClick={() => setEmailModalOpen(true)}
+                >
+                  <Ic n="mail" s={12} /> Email Unverified · Verify Now
+                </button>
+              )}
               {user.avatarUrl && (
                 <button type="button" className="chip" style={{ color: "#DC2626" }} onClick={handleRemoveAvatar} disabled={avatarBusy}>
                   Remove Photo
@@ -345,10 +356,10 @@ function ProfilePage({ user, toast, onUserUpdate, onLogin, onLogout }) {
         <div className="pf-main">
           {/* 4-column Stats including clickable Followers & Following */}
           <div className="pf-stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(125px, 1fr))" }}>
-            <button type="button" className="raised pf-stat fu" style={{ textAlign: "left" }} onClick={() => openSocialModal("followers")}>
+            <button type="button" className="raised pf-stat fu" style={{ textAlign: "left", color: "var(--txt)" }} onClick={() => openSocialModal("followers")}>
               <strong>{user.followers ?? 0}</strong><span>Followers</span>
             </button>
-            <button type="button" className="raised pf-stat fu" style={{ textAlign: "left" }} onClick={() => openSocialModal("following")}>
+            <button type="button" className="raised pf-stat fu" style={{ textAlign: "left", color: "var(--txt)" }} onClick={() => openSocialModal("following")}>
               <strong>{user.following ?? 0}</strong><span>Following</span>
             </button>
             <div className="raised pf-stat fu"><strong>{user.questions ?? 0}</strong><span>{t("profile.questionsPosted")}</span></div>
@@ -692,6 +703,46 @@ function ProfilePage({ user, toast, onUserUpdate, onLogin, onLogout }) {
               <button type="button" className="btn" style={{ background: "#DC2626", color: "#fff" }} onClick={confirmDelete} disabled={deleting} aria-busy={deleting}>{deleting ? t("common.deleting") : t("feed.delete")}</button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* Email Verification Modal */}
+      {emailModalOpen && !user.emailVerified && (
+        <Modal onClose={() => !emailBusy && setEmailModalOpen(false)} maxW={440} showClose label="Verify Your Email">
+          <form
+            onSubmit={async (e) => {
+              await handleVerifyCode(e);
+              setEmailModalOpen(false);
+            }}
+            style={{ padding: "26px 22px 22px", display: "flex", flexDirection: "column", gap: 12 }}
+          >
+            <h3 style={{ fontSize: 20 }}>Verify Your Email</h3>
+            <p style={{ fontSize: 13.5, color: "var(--mut)", lineHeight: 1.55 }}>
+              Send a 6-digit verification code to <strong style={{ color: "var(--txt)" }}>{user.email}</strong>, then enter it below.
+            </p>
+            <button
+              type="button"
+              className="btn btn-out"
+              onClick={handleResendVerification}
+              disabled={emailBusy}
+            >
+              <Ic n="mail" s={15} /> {emailBusy ? "Sending…" : "Send 6-Digit Verification Code"}
+            </button>
+            <input
+              className="inp"
+              placeholder="Enter 6-digit code"
+              inputMode="numeric"
+              value={verifyCode}
+              onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              required
+            />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+              <button type="button" className="btn btn-out" onClick={() => setEmailModalOpen(false)} disabled={emailBusy}>Cancel</button>
+              <button type="submit" className="btn btn-pri" disabled={emailBusy || verifyCode.length < 6}>
+                {emailBusy ? "Verifying…" : "Verify Email"}
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
 

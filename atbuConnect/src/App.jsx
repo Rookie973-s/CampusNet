@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 
 import GlobalStyle from "./components/GlobalStyle";
@@ -18,18 +18,18 @@ import AuthorPopover from "./components/feed/AuthorPopover";
 
 import HomePage from "./pages/HomePage";
 import LandingPage, { SEEN_KEY, markSeen } from "./pages/LandingPage";
-import FeedPage from "./pages/FeedPage";
-import StaffPage from "./pages/StaffPage";
-import QuestionPage from "./pages/QuestionPage";
-import QuestionRoute from "./pages/QuestionRoute";
-import ApplyPage from "./pages/ApplyPage";
-import ProfilePage from "./pages/ProfilePage";
-import LibraryPage from "./pages/LibraryPage";
-import CommunitiesPage from "./pages/CommunitiesPage";
-import CommunityDetailPage from "./pages/CommunityDetailPage";
-import AdsPage from "./pages/AdsPage";
-import ChatsPage from "./pages/ChatsPage";
-import AboutPage from "./pages/AboutPage";
+const FeedPage = lazy(() => import("./pages/FeedPage"));
+const StaffPage = lazy(() => import("./pages/StaffPage"));
+const QuestionPage = lazy(() => import("./pages/QuestionPage"));
+const QuestionRoute = lazy(() => import("./pages/QuestionRoute"));
+const ApplyPage = lazy(() => import("./pages/ApplyPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const LibraryPage = lazy(() => import("./pages/LibraryPage"));
+const CommunitiesPage = lazy(() => import("./pages/CommunitiesPage"));
+const CommunityDetailPage = lazy(() => import("./pages/CommunityDetailPage"));
+const AdsPage = lazy(() => import("./pages/AdsPage"));
+const ChatsPage = lazy(() => import("./pages/ChatsPage"));
+const AboutPage = lazy(() => import("./pages/AboutPage"));
 
 import AuthModal from "./modals/AuthModal";
 import QuickAskModal from "./modals/QuickAskModal";
@@ -166,6 +166,7 @@ export default function App() {
       {!isHome && !chromeless && nav("bar")}
 
       <main className={`app-main${isHome ? " app-main--home" : ""}`} id="main" style={{ flex: 1, ...(chromeless || isHome ? { paddingTop: 0 } : {}) }}>
+        <Suspense fallback={<div style={{ textAlign: "center", padding: "64px 20px", color: "var(--mut)" }}>Loading…</div>}>
         <Routes>
           <Route path="/" element={<HomePage nav={nav("hero")} onNav={handleNav} />} />
           <Route path="/welcome" element={<LandingPage onLogin={openLogin} onRegister={openRegister} />} />
@@ -196,6 +197,7 @@ export default function App() {
             </div>
           } />
         </Routes>
+        </Suspense>
       </main>
 
       {!chromeless && page !== "chats" && <Footer />}

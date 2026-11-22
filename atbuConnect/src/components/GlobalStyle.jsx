@@ -114,16 +114,16 @@ const GlobalStyle = () => (
     .pill.on{background:var(--surfH);color:var(--accent);border-color:var(--brdS);box-shadow:var(--sh-in)}
 
     /* ── BUTTONS ── */
-    .btn{min-height:44px;height:44px;padding:0 22px;border-radius:var(--r-md);font-size:14px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:transform .18s var(--ease-liquid),box-shadow .2s,background .18s;border:1px solid var(--brd);box-shadow:var(--sh-1)}
+    .btn{min-height:44px;height:44px;padding:0 22px;border-radius:var(--r-md);font-size:14px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:transform .18s var(--ease-liquid),box-shadow .2s,background .18s;border:1px solid var(--brd);box-shadow:0 2px 8px -2px rgba(2,8,23,.16)}
     .btn:active:not(:disabled){transform:translateY(1px) scale(.985);box-shadow:var(--sh-press)}
     .btn:disabled{opacity:.6;cursor:not-allowed}
-    .btn-pri{background:#3B82F6;color:#000B18}
-    .btn-pri:hover:not(:disabled){background:#93C5FD;transform:translateY(-1px);box-shadow:var(--sh-2)}
-    .btn-gold{background:linear-gradient(135deg,#3B82F6,#2563EB);color:#000B18;border:none}
-    .btn-gold:hover:not(:disabled){box-shadow:var(--sh-2);transform:translateY(-1px)}
-    .btn-navy{background:#000B18;color:#fff}
-    .btn-navy:hover:not(:disabled){background:#03264A;transform:translateY(-1px)}
-    .btn-out{background:var(--surf);color:var(--txt)}
+    .btn-pri{background:#3B82F6;color:#fff;border-color:transparent;box-shadow:0 4px 14px -4px rgba(37,99,235,.45)}
+    .btn-pri:hover:not(:disabled){background:#2563EB;transform:translateY(-1px);box-shadow:0 6px 18px -4px rgba(37,99,235,.55)}
+    .btn-gold{background:linear-gradient(135deg,#3B82F6,#2563EB);color:#fff;border:none;box-shadow:0 4px 14px -4px rgba(37,99,235,.45)}
+    .btn-gold:hover:not(:disabled){box-shadow:0 6px 18px -4px rgba(37,99,235,.55);transform:translateY(-1px)}
+    .btn-navy{background:#000B18;color:#fff;border-color:transparent;box-shadow:0 4px 14px -4px rgba(2,8,23,.45)}
+    .btn-navy:hover:not(:disabled){background:#03264A;transform:translateY(-1px);box-shadow:0 6px 18px -4px rgba(2,8,23,.55)}
+    .btn-out{background:var(--surf);color:var(--txt);border:1px solid var(--brdS);box-shadow:0 2px 6px -2px rgba(2,8,23,.12)}
     .btn-out:hover{background:var(--surfH)}
     .btn-ghost{background:transparent;color:var(--mut);box-shadow:none;border-color:transparent}
     .btn-ghost:hover{color:var(--txt);background:var(--surfH)}
