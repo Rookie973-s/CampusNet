@@ -319,7 +319,7 @@ function ProfilePage({ user, toast, onUserUpdate, onLogin, onLogout }) {
             <h1 style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <span>{t("profile.hello", { name: first })}</span>
               <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 10, background: "rgba(37,99,235,.12)", color: "var(--accent)" }}>
-                <Ic n="sparkle" s={18} />
+                <Ic n="cap" s={19} />
               </span>
               {user.isVerifiedStudent && <VerifiedBadge size={20} showLabel />}
             </h1>

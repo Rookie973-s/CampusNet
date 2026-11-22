@@ -167,6 +167,15 @@ def strip_html_to_text(raw_html: str) -> str:
     return text.strip()
 
 
+def _parse_sender(from_email: str):
+    """Split 'CampusNetwork <user@example.com>' into (name, email)."""
+    raw = (from_email or "").strip()
+    m = re.match(r"^(.*?)\s*<([^>]+)>$", raw)
+    if m:
+        return (m.group(1).strip().strip('"') or "CampusNetwork", m.group(2).strip())
+    return ("CampusNetwork", raw or "no-reply@campusnetwork.edu.ng")
+
+
 def send_platform_email(
     recipient_email: str,
     subject: str,
@@ -174,23 +183,79 @@ def send_platform_email(
     *,
     allow_formsubmit: bool = True,
 ) -> bool:
-    """Send an email via Django's configured EMAIL_BACKEND, and optionally also notify
+    """Send an email via HTTPS API (Brevo or Resend, ideal for Render Free Tier)
+    or Django's configured EMAIL_BACKEND (SMTP/console), and optionally also notify
     via FormSubmit for non-secret administrative/workflow emails (e.g. SUG approvals).
 
     NEVER set allow_formsubmit=True for password reset codes or verification tokens!
     """
     sent = False
-    try:
-        send_mail(
-            subject=subject,
-            message=message,
-            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@campusnetwork.edu.ng"),
-            recipient_list=[recipient_email],
-            fail_silently=False,
-        )
-        sent = True
-    except Exception as exc:
-        logger.warning("Django email delivery failed for %s: %s", recipient_email, exc)
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "CampusNetwork <no-reply@campusnetwork.edu.ng>")
+    sender_name, sender_addr = _parse_sender(from_email)
+
+    brevo_key = (getattr(settings, "BREVO_API_KEY", "") or "").strip()
+    resend_key = (getattr(settings, "RESEND_API_KEY", "") or "").strip()
+
+    if brevo_key and recipient_email:
+        try:
+            payload = json.dumps({
+                "sender": {"name": sender_name, "email": sender_addr},
+                "to": [{"email": recipient_email}],
+                "subject": subject,
+                "textContent": message,
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                "https://api.brevo.com/v3/smtp/email",
+                data=payload,
+                headers={
+                    "api-key": brevo_key,
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if 200 <= resp.status < 300:
+                    sent = True
+        except Exception as exc:
+            logger.warning("Brevo email delivery failed for %s: %s", recipient_email, exc)
+
+    if not sent and resend_key and recipient_email:
+        try:
+            payload = json.dumps({
+                "from": from_email,
+                "to": [recipient_email],
+                "subject": subject,
+                "text": message,
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                "https://api.resend.com/emails",
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {resend_key}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if 200 <= resp.status < 300:
+                    sent = True
+        except Exception as exc:
+            logger.warning("Resend email delivery failed for %s: %s", recipient_email, exc)
+
+    if not sent:
+        try:
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=from_email,
+                recipient_list=[recipient_email],
+                fail_silently=False,
+            )
+            sent = True
+        except Exception as exc:
+            logger.warning("Django email delivery failed for %s: %s", recipient_email, exc)
 
     formsubmit_enabled = getattr(settings, "FORMSUBMIT_ENABLED", False)
     if allow_formsubmit and formsubmit_enabled and recipient_email:

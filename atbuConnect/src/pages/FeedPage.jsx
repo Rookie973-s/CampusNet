@@ -14,7 +14,6 @@ import {
 } from '../api/questions';
 import { listDepartments } from '../api/departments';
 import { serveAds } from '../api/ads';
-import { feedCatItems } from '../data';
 
 function LeftSidebarTopics({ topicF, setTopicF, depts, stats }) {
   const scrollRef = useRef(null);
@@ -114,6 +113,7 @@ function FeedPage({ user, onLogin, toast, onViewQ }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
   const [qs, setQs] = useState([]);
+  const [totalQuestions, setTotalQuestions] = useState(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [depts, setDepts] = useState([]);
@@ -136,9 +136,12 @@ function FeedPage({ user, onLogin, toast, onViewQ }) {
     const id = ++req.current;
     if (pg === 1) { setLoading(true); setError(false); } else setLoadingMore(true);
     listQuestionsPage({ filter, topic: topicF, discovery, page: pg })
-      .then(({ items, hasMore: more }) => {
+      .then(({ items, hasMore: more, count }) => {
         if (id !== req.current) return;
         setQs((p) => (pg === 1 ? items : [...p, ...items]));
+        if (pg === 1 && topicF === "All" && !discovery && filter !== "Answered") {
+          setTotalQuestions(count);
+        }
         setHasMore(more);
         setPage(pg);
       })
@@ -156,11 +159,21 @@ function FeedPage({ user, onLogin, toast, onViewQ }) {
     serveAds("feed").then(setFeedAds).catch(() => setFeedAds([]));
   }, [user?.hideAds]);
 
+  const allPostCount = totalQuestions ?? depts.reduce((sum, d) => sum + (Number(d.count) || 0), 0);
   const stats = {
-    questions: qs.length,
+    questions: allPostCount,
     answers: qs.reduce((n, q) => n + q.ans, 0),
     staff: depts.length ? new Set(qs.filter((q) => q.staff).map((q) => q.user)).size : 0,
   };
+  const dynamicCatItems = [
+    { value: "All", label: "All Questions", dot: T.gold, count: String(allPostCount) },
+    ...depts.map((d) => ({
+      value: d.name,
+      label: d.name,
+      dot: d.color || T.gold,
+      count: String(d.count ?? 0),
+    })),
+  ];
 
   const guard = (action) => { if (!user) { onLogin(t(action)); return false; } return true; };
 
@@ -242,7 +255,7 @@ function FeedPage({ user, onLogin, toast, onViewQ }) {
 
         <div className="feed-filter-bar fu fu2" style={{ display: "flex", gap: 8, marginBottom: 18, alignItems: "center", flexWrap: "wrap", position: "relative", zIndex: 50 }}>
           <div className="mob-only-cat">
-            <CategoryPicker items={feedCatItems} value={topicF} onChange={(v) => setTopicF(v || "All")} placeholder="All Questions" />
+            <CategoryPicker items={dynamicCatItems} value={topicF} onChange={(v) => setTopicF(v || "All")} placeholder="All Questions" />
           </div>
           <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "4px 4px 8px", flex: 1, minWidth: 0, maxWidth: "100%" }}>
             {[["Trending", "feed.f.trending"], ["Most Recent", "feed.f.recent"], ["Unanswered", "feed.f.unanswered"], ["Answered", "feed.f.answered"]].map(([f, k]) => (

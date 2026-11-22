@@ -160,8 +160,19 @@ CORS_ALLOW_CREDENTIALS = True
 EMAIL_BACKEND = env(
     "EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend"
 )
+EMAIL_HOST = env("EMAIL_HOST", default="localhost")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=15)
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="CampusNetwork <no-reply@campusnetwork.edu.ng>")
 FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:5173")
+
+# HTTPS Email APIs (recommended on Render Free Tier where outbound SMTP ports are blocked)
+BREVO_API_KEY = env("BREVO_API_KEY", default="")
+RESEND_API_KEY = env("RESEND_API_KEY", default="")
 
 # Optional FormSubmit integration for administrative / SUG approval notifications only.
 # Password reset codes and email verification links NEVER use FormSubmit.

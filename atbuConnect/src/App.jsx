@@ -159,8 +159,11 @@ export default function App() {
       <GlobalStyle />
       <ToastContainer toasts={toasts} />
       {!isHome && !chromeless && page !== "chats" && (
-        <BackToTop onAsk={() => (user ? setQuickAsk(true) : promptLogin(t("guest.actions.post")))}
-          askLabel={t("nav.ask")} topLabel={t("nav.top")} />
+        <BackToTop
+          onAsk={page === "feed" && !viewQ ? () => (user ? setQuickAsk(true) : promptLogin(t("guest.actions.post"))) : null}
+          askLabel={t("nav.ask")}
+          topLabel={t("nav.top")}
+        />
       )}
 
       {!isHome && !chromeless && nav("bar")}

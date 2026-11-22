@@ -4,11 +4,11 @@ import useDialog from '../../hooks/useDialog';
 
 // ── ToastContainer ──
 const ToastContainer = ({toasts}) => (
-  <div role="status" aria-live="polite" style={{position:"fixed",bottom:28,left:"50%",transform:"translateX(-50%)",zIndex:3000,display:"flex",flexDirection:"column",gap:10,alignItems:"center",pointerEvents:"none",maxWidth:"calc(100vw - 24px)"}}>
+  <div role="status" aria-live="polite" style={{position:"fixed",top:"calc(env(safe-area-inset-top, 0px) + 18px)",left:"50%",transform:"translateX(-50%)",zIndex:3000,display:"flex",flexDirection:"column",gap:10,alignItems:"center",pointerEvents:"none",maxWidth:"calc(100vw - 24px)"}}>
     {toasts.map(t=>(
-      <div key={t.id} className={`toast`} style={{background:t.type==="success"?"#10B981":t.type==="error"?"#EF4444":"#000B18",color:"#fff"}}>
-        {t.type==="success"?<Ic n="check" s={16}/>:t.type==="error"?<Ic n="x" s={16}/>:<Ic n="bell" s={16}/>}
-        {t.msg}
+      <div key={t.id} className="toast" style={{background:"#000B18",color:"#fff",border:"1px solid rgba(147,180,255,.22)",boxShadow:"0 12px 30px rgba(2,8,23,.55)",animation:"slideDown .24s var(--ease-liquid) both"}}>
+        {t.type==="success"?<Ic n="check" s={16} c="#34D399"/>:t.type==="error"?<Ic n="x" s={16} c="#F87171"/>:<Ic n="bell" s={16} c="#60A5FA"/>}
+        <span>{t.msg}</span>
       </div>
     ))}
   </div>

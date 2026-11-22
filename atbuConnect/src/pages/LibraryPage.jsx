@@ -44,6 +44,10 @@ function LibraryPage({ user, onLogin, toast }) {
   const reqId = useRef(0);
 
   const setFilter = useCallback((patch) => {
+    if ("course" in patch) {
+      setItems([]);
+      setState("loading");
+    }
     const next = new URLSearchParams(params);
     Object.entries(patch).forEach(([k, v]) => (v ? next.set(k, v) : next.delete(k)));
     setParams(next, { replace: false });

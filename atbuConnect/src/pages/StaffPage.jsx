@@ -8,7 +8,7 @@ import CategoryPicker from '../components/CategoryPicker';
 import { listStaff } from '../api/staff';
 import { getSUGRatings, rateSUG } from '../api/users';
 import { startConversation } from '../api/chat';
-import { staffCatItems } from '../data';
+import { listDepartments } from '../api/departments';
 
 /**
  * Meet the SUG — Vertical Swipeable Card Deck Carousel (inspired by SUG_CARD.mp4)
@@ -25,6 +25,7 @@ function StaffPage({ user, onLogin, toast }) {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [staff, setStaff] = useState([]);
+  const [depts, setDepts] = useState([]);
   const [search, setSearch] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
   const [dragY, setDragY] = useState(0);
@@ -44,6 +45,7 @@ function StaffPage({ user, onLogin, toast }) {
   useEffect(() => {
     if (!user) { setStaff([]); setLoading(false); return; }
     setLoading(true);
+    listDepartments().then(setDepts).catch(() => {});
     listStaff()
       .then((s) => {
         setStaff(s);
@@ -276,7 +278,15 @@ function StaffPage({ user, onLogin, toast }) {
           <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--faint)" }}><Ic n="search" s={15} /></span>
         </div>
         <div style={{ position: "relative", zIndex: 50 }}>
-          <CategoryPicker items={staffCatItems} value={deptF} onChange={(v) => { setDeptF(v || "All"); setActiveIdx(0); }} placeholder="All Departments" />
+          <CategoryPicker
+            items={[
+              { value: "All", label: "All Departments", dot: T.gold },
+              ...depts.map((d) => ({ value: d.name, label: d.name, dot: d.color || T.gold })),
+            ]}
+            value={deptF}
+            onChange={(v) => { setDeptF(v || "All"); setActiveIdx(0); }}
+            placeholder="All Departments"
+          />
         </div>
       </div>
 

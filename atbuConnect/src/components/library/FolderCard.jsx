@@ -4,7 +4,7 @@ import { useI18n } from '../../i18n';
 /** A course folder: a few real document sheets peek out from behind a raised front panel. */
 export default function FolderCard({ f, onOpen }) {
   const { t } = useI18n();
-  const sheets = f.previews.slice(0, 3);
+  const sheets = (f.previews || []).slice(0, 3);
   return (
     <button type="button" className="folder" onClick={() => onOpen(f)} aria-label={t("library.openFolder", { code: f.code, n: f.count })}>
       <span className="folder-sheets" aria-hidden="true">
