@@ -65,6 +65,7 @@ class User(AbstractUser):
     matric_number = models.CharField(max_length=32, blank=True)
     level = models.CharField(max_length=32, blank=True)  # e.g. "300 Level"
     is_verified_student = models.BooleanField(default=False)
+    verification_expires_at = models.DateTimeField(null=True, blank=True)
 
     # Staff / SUG-only
     staff_id = models.CharField(max_length=32, blank=True)
@@ -262,7 +263,7 @@ class StudentVerificationApplication(models.Model):
     )
     department_name = models.CharField(max_length=120, blank=True)
     level = models.CharField(max_length=32)
-    matric_number = models.CharField(max_length=32)
+    matric_number = models.CharField(max_length=32, blank=True, default="")
     reason = models.TextField(blank=True)
     supporting_document = models.FileField(
         upload_to=verification_doc_path,
@@ -270,6 +271,13 @@ class StudentVerificationApplication(models.Model):
         blank=True,
         null=True,
     )
+    liveness_video = models.FileField(
+        upload_to=verification_doc_path,
+        storage=verification_private_storage,
+        blank=True,
+        null=True,
+    )
+    is_renewal = models.BooleanField(default=False)
     status = models.CharField(max_length=15, choices=Status.choices, default=Status.PENDING)
     payment_link = models.CharField(max_length=255, blank=True)
     reviewed_by = models.ForeignKey(

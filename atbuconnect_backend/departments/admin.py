@@ -3,6 +3,14 @@ from django.contrib import admin
 from django.utils.safestring import mark_safe
 
 from .models import Department
+from library.models import AcademicDepartment
+
+
+class AcademicDepartmentInline(admin.TabularInline):
+    model = AcademicDepartment
+    extra = 2
+    verbose_name = "Department in this Faculty"
+    verbose_name_plural = "Departments in this Faculty"
 
 PRIMARY_AND_SECONDARY_COLORS = [
     ("#3B82F6", "Blue (Primary)"),
@@ -67,6 +75,7 @@ class DepartmentAdminForm(forms.ModelForm):
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):
     form = DepartmentAdminForm
+    inlines = [AcademicDepartmentInline]
     list_display = ["name", "color_preview", "order", "count"]
     ordering = ["order", "name"]
 

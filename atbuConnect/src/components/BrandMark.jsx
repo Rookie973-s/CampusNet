@@ -30,9 +30,9 @@ export default function BrandMark({ size = 40, bare = false, className = "", sty
       style={{
         width: size,
         height: size,
-        borderRadius: Math.round(size * 0.28),
+        borderRadius: "50%",
         background: "linear-gradient(180deg, #FFFFFF 0%, #EDF3FC 100%)",
-        boxShadow: "0 2px 8px rgba(2,8,23,.28), inset 0 1px 0 #FFFFFF",
+        boxShadow: "0 2px 8px rgba(0,0,0,.32), inset 0 1px 0 #FFFFFF",
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",

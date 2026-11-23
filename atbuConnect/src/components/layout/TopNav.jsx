@@ -17,7 +17,7 @@ export const NAV_ITEMS = [
 
 export default function TopNav({
   variant = "bar", page, onNav, user, onLogin, onRegister, onLogout,
-  theme, toggleTheme, notifs, unread, onMarkAll, onMarkOne, drawerOpen, onToggleDrawer, search,
+  theme, toggleTheme, notifs, unread, onMarkAll, onMarkOne, onClearAll, drawerOpen, onToggleDrawer, search,
 }) {
   const { t } = useI18n();
   const [notifOpen, setNotifOpen] = useState(false);
@@ -97,8 +97,8 @@ export default function TopNav({
           </button>
 
           {user && (
-            <div className="tn-pop">
-              <button type="button" className="tn-ib" aria-haspopup="true" aria-expanded={notifOpen}
+            <div className="tn-pop tn-notif-wrap">
+              <button type="button" className="tn-ib tn-notif-btn" aria-haspopup="true" aria-expanded={notifOpen}
                 aria-label={unread > 0 ? t("nav.notificationsUnread", { n: unread }) : t("nav.notifications")}
                 onClick={() => { setNotifOpen((p) => !p); setUserOpen(false); }}>
                 <Ic n="bell" s={17} />
@@ -109,6 +109,7 @@ export default function TopNav({
                   notifs={notifs}
                   onMarkAll={onMarkAll}
                   onMarkOne={onMarkOne}
+                  onClearAll={onClearAll}
                   onClose={() => setNotifOpen(false)}
                 />
               )}
@@ -119,12 +120,15 @@ export default function TopNav({
             <div className="tn-pop">
               <button type="button" className="tn-avatar" aria-haspopup="true" aria-expanded={userOpen}
                 aria-label={t("nav.account")} onClick={() => { setUserOpen((p) => !p); setNotifOpen(false); }}
-                style={{ padding: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                style={{ padding: 0, overflow: "visible", position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <UserAvatar src={user.avatarUrl} av={user.av || (user.name || "?")[0]} bg={user.bg} size={40} border="none" />
+                {unread > 0 && <span className="tn-badge tn-avatar-badge" aria-hidden="true">{unread > 9 ? "9+" : unread}</span>}
               </button>
               {userOpen && (
                 <UserDropdown
                   user={user}
+                  unread={unread}
+                  onOpenNotifs={() => { setUserOpen(false); setNotifOpen(true); }}
                   onNavigate={(dest) => { onNav(dest); setUserOpen(false); }}
                   onLogout={() => { onLogout(); setUserOpen(false); }}
                 />

@@ -25,11 +25,14 @@ class StaffApplication(models.Model):
     phone = models.CharField(max_length=32, blank=True)
     profile_picture = models.ImageField(upload_to=sug_avatar_path, blank=True, null=True)
 
-    # Step 2 — Academic Details
-    staff_id = models.CharField(max_length=32, help_text="Staff ID / Matric / SUG ID")
+    # Step 2 — Academic Details (ID document + camera liveness scan replace matric numbers)
+    staff_id = models.CharField(max_length=32, blank=True, default="", help_text="Optional SUG Office Code")
     department = models.ForeignKey("departments.Department", on_delete=models.SET_NULL, null=True)
+    academic_department_name = models.CharField(max_length=120, blank=True, default="")
     role_title = models.CharField(max_length=120, help_text="Current role / title")
     academic_references = models.CharField(max_length=255, blank=True)
+    supporting_document = models.FileField(upload_to=sug_avatar_path, blank=True, null=True)
+    liveness_video = models.FileField(upload_to=sug_avatar_path, blank=True, null=True)
 
     # Step 3 — Statement
     bio = models.TextField()

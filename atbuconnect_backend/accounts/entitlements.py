@@ -19,7 +19,12 @@ VERIFIED_COMMENT_BOOST = getattr(settings, "VERIFIED_COMMENT_BOOST", 1.5)
 
 
 def is_verified_student(user) -> bool:
-    return bool(user and user.is_authenticated and getattr(user, "is_verified_student", False))
+    if not (user and user.is_authenticated and getattr(user, "is_verified_student", False)):
+        return False
+    exp = getattr(user, "verification_expires_at", None)
+    if exp and timezone.now() >= exp:
+        return False
+    return True
 
 
 def is_admin_or_mod(user) -> bool:

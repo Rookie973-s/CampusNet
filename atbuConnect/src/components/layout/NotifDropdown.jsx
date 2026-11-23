@@ -8,7 +8,7 @@ const TYPE_STYLE = {
   mention: { icon: "at", bg: "rgba(139,92,246,.15)", c: "#8B5CF6" },
   answer: { icon: "msg", bg: "rgba(16,185,129,.15)", c: "#10B981" },
   comment: { icon: "msg", bg: "rgba(16,185,129,.15)", c: "#10B981" },
-  welcome: { icon: "sparkle", bg: "rgba(245,158,11,.15)", c: "#F59E0B" },
+  welcome: { icon: "cap", bg: "rgba(245,158,11,.15)", c: "#F59E0B" },
   staff: { icon: "shield", bg: "rgba(59,130,246,.15)", c: "#2563EB" },
   class_rep: { icon: "file", bg: "rgba(16,185,129,.15)", c: "#059669" },
   verification: { icon: "check", bg: "rgba(16,185,129,.15)", c: "#10B981" },
@@ -18,7 +18,7 @@ const TYPE_STYLE = {
   system: { icon: "bell", bg: "rgba(100,116,139,.15)", c: "var(--mut)" },
 };
 
-function NotifDropdown({ notifs, onMarkAll, onMarkOne, onClose }) {
+function NotifDropdown({ notifs, onMarkAll, onMarkOne, onClearAll, onClose }) {
   const navigate = useNavigate();
   const unread = notifs.filter((n) => n.unread).length;
 
@@ -40,11 +40,18 @@ function NotifDropdown({ notifs, onMarkAll, onMarkOne, onClose }) {
         <span style={{ fontWeight: 700, fontSize: 14 }}>
           Notifications {unread > 0 && <span style={{ background: T.error, color: "#fff", borderRadius: 10, padding: "2px 7px", fontSize: 11, marginLeft: 6 }}>{unread}</span>}
         </span>
-        {unread > 0 && (
-          <button type="button" onClick={onMarkAll} style={{ fontSize: 12, color: "var(--accent)", fontWeight: 700, cursor: "pointer", background: "none", border: "none", fontFamily: "inherit" }}>
-            Mark all read
-          </button>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {unread > 0 && (
+            <button type="button" onClick={onMarkAll} style={{ fontSize: 12, color: "var(--accent)", fontWeight: 700, cursor: "pointer", background: "none", border: "none", fontFamily: "inherit" }}>
+              Mark all read
+            </button>
+          )}
+          {notifs.length > 0 && onClearAll && (
+            <button type="button" onClick={onClearAll} style={{ fontSize: 12, color: "#EF4444", fontWeight: 700, cursor: "pointer", background: "none", border: "none", fontFamily: "inherit" }}>
+              Delete all
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ overflowY: "auto", flex: 1 }}>

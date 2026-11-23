@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Ic from '../components/Ic';
+import LivenessScanner from '../components/ui/LivenessScanner';
 import { listDepartments } from '../api/departments';
 import { submitApplication, checkApplicationStatus, cancelSugStatus, cancelPendingSugApplication } from '../api/applications';
 import { flattenMe } from '../api/auth';
@@ -45,9 +46,11 @@ function ApplyPage({ user, onUserUpdate, toast }) {
   const { t } = useI18n();
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState({ fname: "", lname: "", email: "", phone: "", staffId: "", dept: "", role: "", bio: "", why: "", refs: "" });
+  const [form, setForm] = useState({ fname: "", lname: "", email: "", phone: "", dept: "", subDept: "", role: "", bio: "", why: "", refs: "" });
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [docFile, setDocFile] = useState(null);
+  const [livenessVideo, setLivenessVideo] = useState(null);
   const [errs, setErrs] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -93,9 +96,10 @@ function ApplyPage({ user, onUserUpdate, toast }) {
       if (form.phone.trim() && !PHONE_RE.test(form.phone.trim())) e.phone = t("sug.err.phone");
     }
     if (s === 1) {
-      if (!form.staffId.trim()) e.staffId = t("sug.err.required");
       if (!form.dept) e.dept = t("sug.err.dept");
       if (!form.role.trim()) e.role = t("sug.err.required");
+      if (!docFile) e.doc = "Please upload your Admission Form or Student ID Card.";
+      if (!livenessVideo) e.liveness = "Please complete the quick camera blink & nod scan.";
     }
     if (s === 2) {
       if (form.bio.trim().length < MIN_TEXT) e.bio = t("sug.err.short", { n: MIN_TEXT });
@@ -115,8 +119,9 @@ function ApplyPage({ user, onUserUpdate, toast }) {
       const chosen = depts.find((d) => d.name === form.dept);
       await submitApplication({
         fname: form.fname.trim(), lname: form.lname.trim(), email: form.email.trim(), phone: form.phone.trim(),
-        staffId: form.staffId.trim(), departmentId: chosen ? chosen.id : null, role: form.role.trim(),
-        bio: form.bio.trim(), why: form.why.trim(), refs: form.refs.trim(), profilePicture: photo,
+        departmentId: chosen ? chosen.id : null, academicDepartmentName: form.subDept.trim(),
+        role: form.role.trim(), bio: form.bio.trim(), why: form.why.trim(), refs: form.refs.trim(),
+        profilePicture: photo, supportingDocument: docFile, livenessVideo,
       });
       toast(t("sug.submitted"), "success");
       setSubmitted(true);
@@ -270,16 +275,41 @@ function ApplyPage({ user, onUserUpdate, toast }) {
                 <Field id="sug-phone" label={t("sug.phone")} error={errs.phone}><input {...ic("phone")} type="tel" inputMode="tel" autoComplete="tel" /></Field>
               </>
             )}
-            {step === 1 && (
-              <>
-                <Field id="sug-staffId" label={`${t("sug.idNumber")} *`} error={errs.staffId}><input {...ic("staffId")} autoComplete="off" /></Field>
-                <Field id="sug-dept" label={`${t("sug.dept")} *`} error={errs.dept}>
-                  <select {...ic("dept")}><option value="">{t("sug.selectDept")}</option>{depts.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}</select>
-                </Field>
-                <Field id="sug-role" label={`${t("sug.role")} *`} error={errs.role}><input {...ic("role")} placeholder={t("sug.rolePh")} /></Field>
-                <Field id="sug-refs" label={t("sug.refs")} error={errs.refs}><input {...ic("refs")} /></Field>
-              </>
-            )}
+            {step === 1 && (() => {
+              const selFac = depts.find((d) => d.name === form.dept);
+              const subDepts = selFac?.sub_departments || [];
+              return (
+                <>
+                  <Field id="sug-dept" label="Academic Faculty *" error={errs.dept}>
+                    <select {...ic("dept")} onChange={(e) => { upd("dept", e.target.value); upd("subDept", ""); }}>
+                      <option value="">Select Academic Faculty</option>
+                      {depts.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
+                    </select>
+                  </Field>
+                  <Field id="sug-subDept" label="Department">
+                    {subDepts.length > 0 ? (
+                      <select {...ic("subDept")}>
+                        <option value="">Select Department</option>
+                        {subDepts.map((sd) => <option key={sd.id} value={sd.name}>{sd.name}</option>)}
+                      </select>
+                    ) : (
+                      <input {...ic("subDept")} placeholder={form.dept ? "Enter your department" : "Select a faculty first"} />
+                    )}
+                  </Field>
+                  <Field id="sug-role" label={`${t("sug.role")} *`} error={errs.role}><input {...ic("role")} placeholder={t("sug.rolePh")} /></Field>
+                  <Field id="sug-doc" label="Admission Form or Student ID Card *" error={errs.doc}>
+                    <input id="sug-doc" type="file" accept="image/*,.pdf" className="inp" style={{ paddingTop: 9 }} onChange={(e) => { setDocFile(e.target.files?.[0] || null); setErrs((p) => ({ ...p, doc: "" })); }} />
+                  </Field>
+                  <LivenessScanner
+                    videoFile={livenessVideo}
+                    onComplete={(f) => { setLivenessVideo(f); setErrs((p) => ({ ...p, liveness: "" })); }}
+                    disabled={submitting}
+                  />
+                  {errs.liveness && <p className="field-err" role="alert">{errs.liveness}</p>}
+                  <Field id="sug-refs" label={t("sug.refs")} error={errs.refs}><input {...ic("refs")} /></Field>
+                </>
+              );
+            })()}
             {step === 2 && (
               <>
                 <Field id="sug-bio" label={`${t("sug.bio")} *`} error={errs.bio} hint={t("sug.hint", { n: MIN_TEXT, c: form.bio.trim().length })}>
@@ -297,9 +327,11 @@ function ApplyPage({ user, onUserUpdate, toast }) {
                     [t("sug.first") + " / " + t("sug.last"), `${form.fname} ${form.lname}`],
                     [t("sug.email"), form.email],
                     [t("sug.phone"), form.phone],
-                    [t("sug.idNumber"), form.staffId],
-                    [t("sug.dept"), form.dept],
+                    ["Academic Faculty", form.dept],
+                    ["Department", form.subDept],
                     [t("sug.role"), form.role],
+                    ["ID / Admission Document", docFile ? docFile.name : "Missing"],
+                    ["Camera Liveness Scan", livenessVideo ? "Recorded ✓" : "Missing"],
                     [t("sug.refs"), form.refs],
                     ["Profile photo", photo ? photo.name : "Not uploaded (initials will be used)"],
                   ].map(([l, v]) => (

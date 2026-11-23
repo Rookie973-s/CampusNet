@@ -341,34 +341,44 @@ class StudentVerificationApplicationSerializer(serializers.ModelSerializer):
     user_info = UserPublicSerializer(source="user", read_only=True)
     faculty_name = serializers.CharField(source="faculty.name", read_only=True, default=None)
     has_document = serializers.SerializerMethodField()
+    has_liveness_video = serializers.SerializerMethodField()
 
     class Meta:
         model = StudentVerificationApplication
         fields = [
             "id", "user", "user_info", "faculty", "faculty_name", "department",
             "department_name", "level", "matric_number", "reason", "supporting_document",
-            "has_document", "status", "payment_link", "review_note",
+            "liveness_video", "has_document", "has_liveness_video", "is_renewal",
+            "status", "payment_link", "review_note",
             "created_at", "reviewed_at", "consent",
         ]
         read_only_fields = [
-            "id", "user", "user_info", "status", "payment_link", "review_note",
+            "id", "user", "user_info", "is_renewal", "status", "payment_link", "review_note",
             "created_at", "reviewed_at",
         ]
-        extra_kwargs = {"supporting_document": {"write_only": True, "required": False}}
+        extra_kwargs = {
+            "supporting_document": {"write_only": True, "required": False},
+            "liveness_video": {"write_only": True, "required": False},
+            "matric_number": {"required": False, "allow_blank": True},
+        }
 
     def get_has_document(self, obj):
         return bool(obj.supporting_document)
 
-    def validate_matric_number(self, value):
-        value = (value or "").strip()
-        if len(value) < 5:
-            raise serializers.ValidationError("Enter your official ATBU matriculation number (e.g. 21/62525/U).")
-        return value
+    def get_has_liveness_video(self, obj):
+        return bool(obj.liveness_video)
 
     def validate_consent(self, value):
         if not value:
             raise serializers.ValidationError("You must consent to the verification process and privacy policy.")
         return value
+
+    def validate_liveness_video(self, f):
+        if not f:
+            return f
+        if f.size > 25 * 1024 * 1024:
+            raise serializers.ValidationError("Liveness scan video must be under 25 MB.")
+        return f
 
     def validate_supporting_document(self, f):
         if not f:

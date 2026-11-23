@@ -11,7 +11,7 @@ import VerifiedBadge from '../ui/VerifiedBadge';
  * - Settings (Profile settings tab)
  * - Sign Out
  */
-function UserDropdown({ user, onNavigate, onLogout }) {
+function UserDropdown({ user, unread = 0, onOpenNotifs, onNavigate, onLogout }) {
   const name = user?.name || "Account";
   const av = user?.av || (name[0] || "U").toUpperCase();
   const bg = user?.bg || T.gold;
@@ -36,6 +36,18 @@ function UserDropdown({ user, onNavigate, onLogout }) {
           <div style={{ fontSize: 12, color: "var(--mut)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subtitle}</div>
         </div>
       </div>
+
+      {onOpenNotifs && (
+        <button type="button" role="menuitem" className="ud-item ud-item--mob-notif" onClick={onOpenNotifs}>
+          <Ic n="bell" s={15} c="var(--mut)" />
+          <span style={{ flex: 1, textAlign: "left" }}>Notifications</span>
+          {unread > 0 && (
+            <span style={{ background: "#EF4444", color: "#fff", borderRadius: 99, padding: "1px 7px", fontSize: 11, fontWeight: 800 }}>
+              {unread > 9 ? "9+" : unread}
+            </span>
+          )}
+        </button>
+      )}
 
       {items.map(({ ic, l, dest }) => (
         <button key={l} type="button" role="menuitem" className="ud-item" onClick={() => onNavigate(dest)}>

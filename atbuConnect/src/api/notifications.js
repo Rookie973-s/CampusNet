@@ -16,3 +16,7 @@ export async function markAllRead() {
 export async function markRead(id) {
   return api.post(`/notifications/${id}/read/`, {}, { auth: "required" });
 }
+
+export async function clearAllNotifications() {
+  return api.del("/notifications/clear_all/", { auth: "required" });
+}

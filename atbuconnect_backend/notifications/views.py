@@ -34,3 +34,8 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     def mark_all_read(self, request):
         self.get_queryset().update(read=True)
         return Response({"detail": "all marked read"})
+
+    @action(detail=False, methods=["delete", "post"], url_path="clear_all")
+    def clear_all(self, request):
+        deleted, _ = self.get_queryset().delete()
+        return Response({"detail": "all notifications deleted", "deleted": deleted})

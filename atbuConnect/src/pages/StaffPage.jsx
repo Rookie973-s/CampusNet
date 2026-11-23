@@ -272,12 +272,12 @@ function StaffPage({ user, onLogin, toast }) {
         </p>
       </div>
 
-      <div className="fu" style={{ marginBottom: 16, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+      <div style={{ marginBottom: 16, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", position: "relative", zIndex: 200 }}>
         <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
           <input className="inp" placeholder="Search SUG by name, @username, or office…" value={search} onChange={(e) => { setSearch(e.target.value); setActiveIdx(0); }} style={{ paddingLeft: 38 }} />
           <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--faint)" }}><Ic n="search" s={15} /></span>
         </div>
-        <div style={{ position: "relative", zIndex: 50 }}>
+        <div style={{ position: "relative", zIndex: 300 }}>
           <CategoryPicker
             items={[
               { value: "All", label: "All Departments", dot: T.gold },

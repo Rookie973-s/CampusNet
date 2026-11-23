@@ -44,6 +44,9 @@ export async function createCommunity({ name, slug, description, category, visib
 }
 
 export async function updateCommunity(slug, patch) {
+  if (patch instanceof FormData) {
+    return apiUpload(`/communities/${encodeURIComponent(slug)}/`, patch, { method: "PATCH" });
+  }
   return api.patch(`/communities/${encodeURIComponent(slug)}/`, patch, { auth: "required" });
 }
 

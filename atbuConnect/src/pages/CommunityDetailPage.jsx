@@ -8,7 +8,7 @@ import RichTextView from "../components/ui/RichTextView";
 import RichComposer, { markupToHtml, stripMarkup } from "../components/ui/RichComposer";
 import AuthorPopover from "../components/feed/AuthorPopover";
 import {
-  getCommunity, followCommunity, unfollowCommunity, updateCommunityNotifs,
+  COMMUNITY_CATEGORIES, getCommunity, updateCommunity, followCommunity, unfollowCommunity, updateCommunityNotifs,
   listCommunityPosts, createCommunityPost, likeCommunityPost, deleteCommunityPost,
   listCommunityPostComments, createCommunityPostComment, reportCommunityPost,
   listCommunityMembers, setCommunityRole,
@@ -154,6 +154,9 @@ export default function CommunityDetailPage({ user, onLogin, toast }) {
   const [membersOpen, setMembersOpen] = useState(false);
   const [members, setMembers] = useState([]);
   const [profileTarget, setProfileTarget] = useState(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ name: "", description: "", category: "Campus Life", rules: "", avatar: null, cover: null });
+  const [editBusy, setEditBusy] = useState(false);
 
   // Admin publisher composer
   const [postTitle, setPostTitle] = useState("");
@@ -247,28 +250,37 @@ export default function CommunityDetailPage({ user, onLogin, toast }) {
           {comm.cover_url && <img src={comm.cover_url} alt={comm.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
         </div>
 
-        <div style={{ padding: "0 22px 22px", position: "relative" }}>
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 14, flexWrap: "wrap", marginTop: -36, marginBottom: 12 }}>
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 14 }}>
-              <div className="comm-av" style={{ width: 76, height: 76, fontSize: 28, border: "4px solid var(--surf)", background: comm.accent_color || "#2563EB" }}>
-                {comm.avatar_url ? <img src={comm.avatar_url} alt={comm.name} /> : <span>{(comm.name || "C")[0]}</span>}
-              </div>
-              <div style={{ paddingBottom: 4 }}>
-                <h1 style={{ fontSize: "clamp(20px,3vw,26px)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  {comm.name}
-                  {comm.is_official && <span className="comm-official">Official</span>}
-                </h1>
-                <div style={{ fontSize: 13, color: "var(--mut)" }}>
-                  {comm.category} · {comm.followers_count} followers · {comm.posts_count} posts
-                </div>
-              </div>
+        <div style={{ padding: "0 clamp(14px,3vw,24px) 22px", position: "relative" }}>
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginTop: -38, marginBottom: 12 }}>
+            <div className="comm-av" style={{ width: 80, height: 80, fontSize: 28, border: "4px solid var(--surf)", background: comm.accent_color || "#2563EB", boxShadow: "var(--sh-2)", flexShrink: 0 }}>
+              {comm.avatar_url ? <img src={comm.avatar_url} alt={comm.name} /> : <span>{(comm.name || "C")[0]}</span>}
             </div>
 
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", paddingTop: 44 }}>
+              {(comm.my_role === "owner" || user?.role === "admin") && (
+                <button
+                  type="button"
+                  className="btn btn-out"
+                  style={{ height: 38, minHeight: 38, padding: "0 14px", fontSize: 13 }}
+                  onClick={() => {
+                    setEditForm({
+                      name: comm.name || "",
+                      description: comm.description || "",
+                      category: comm.category || "Campus Life",
+                      rules: comm.rules || "",
+                      avatar: null,
+                      cover: null,
+                    });
+                    setEditOpen(true);
+                  }}
+                >
+                  <Ic n="edit" s={14} /> Edit Community
+                </button>
+              )}
               {comm.is_following && (
                 <select
                   className="inp"
-                  style={{ height: 40, width: "auto", fontSize: 13, padding: "0 32px 0 12px" }}
+                  style={{ height: 38, width: "auto", fontSize: 13, padding: "0 30px 0 12px" }}
                   value={comm.notif_level || "all"}
                   onChange={(e) => changeNotif(e.target.value)}
                   aria-label="Community notification preferences"
@@ -278,14 +290,24 @@ export default function CommunityDetailPage({ user, onLogin, toast }) {
                   <option value="none">Notifs: Muted</option>
                 </select>
               )}
-              <button type="button" className="btn btn-out" style={{ height: 40 }} onClick={openMembers}>
-                <Ic n="users" s={15} /> Followers
+              <button type="button" className="btn btn-out" style={{ height: 38, minHeight: 38, padding: "0 14px", fontSize: 13 }} onClick={openMembers}>
+                <Ic n="users" s={14} /> Followers
               </button>
               {comm.my_role !== "owner" && (
-                <button type="button" className={`btn ${comm.is_following ? "btn-out" : "btn-navy"}`} style={{ height: 40 }} onClick={toggleFollow}>
+                <button type="button" className={`btn ${comm.is_following ? "btn-out" : "btn-navy"}`} style={{ height: 38, minHeight: 38, padding: "0 16px", fontSize: 13 }} onClick={toggleFollow}>
                   {comm.is_following ? "Following" : "Follow"}
                 </button>
               )}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 10 }}>
+            <h1 style={{ fontSize: "clamp(20px,3vw,26px)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", color: "var(--txt)", marginBottom: 4 }}>
+              <span>{comm.name}</span>
+              {comm.is_official && <span className="comm-official">Official</span>}
+            </h1>
+            <div style={{ fontSize: 13, color: "var(--mut)" }}>
+              {comm.category} · {comm.followers_count} followers · {comm.posts_count} posts
             </div>
           </div>
 
@@ -403,6 +425,67 @@ export default function CommunityDetailPage({ user, onLogin, toast }) {
               ))}
             </div>
           </div>
+        </Modal>
+      )}
+
+      {editOpen && (
+        <Modal onClose={() => !editBusy && setEditOpen(false)} maxW={520} showClose label="Edit Community">
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setEditBusy(true);
+              try {
+                const fd = new FormData();
+                fd.append("name", editForm.name.trim());
+                fd.append("description", editForm.description.trim());
+                fd.append("category", editForm.category);
+                fd.append("rules", editForm.rules);
+                if (editForm.avatar) fd.append("avatar", editForm.avatar);
+                if (editForm.cover) fd.append("cover_image", editForm.cover);
+                const updated = await updateCommunity(comm.slug, fd);
+                setComm((p) => ({ ...p, ...updated }));
+                setEditOpen(false);
+                toast("Community updated!", "success");
+              } catch (err) {
+                toast(err.message || "Could not update community.", "error");
+              } finally { setEditBusy(false); }
+            }}
+            style={{ padding: "24px 22px 20px", display: "flex", flexDirection: "column", gap: 12 }}
+          >
+            <h3 style={{ fontSize: 20 }}>Edit Community</h3>
+            <div>
+              <label className="lf-label">Community Name</label>
+              <input className="inp" required value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="lf-label">Category</label>
+              <select className="inp" value={editForm.category} onChange={(e) => setEditForm((p) => ({ ...p, category: e.target.value }))}>
+                {COMMUNITY_CATEGORIES.filter((c) => c !== "All").map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="lf-label">Description</label>
+              <textarea className="inp" style={{ minHeight: 74 }} required value={editForm.description} onChange={(e) => setEditForm((p) => ({ ...p, description: e.target.value }))} />
+            </div>
+            <div>
+              <label className="lf-label">Community Rules / Guidelines</label>
+              <textarea className="inp" style={{ minHeight: 64 }} value={editForm.rules} onChange={(e) => setEditForm((p) => ({ ...p, rules: e.target.value }))} />
+            </div>
+            <div className="sug-2">
+              <div>
+                <label className="lf-label">Profile Photo (Avatar)</label>
+                <input type="file" accept="image/*" className="inp" style={{ paddingTop: 9 }} onChange={(e) => setEditForm((p) => ({ ...p, avatar: e.target.files?.[0] || null }))} />
+              </div>
+              <div>
+                <label className="lf-label">Cover Photo</label>
+                <input type="file" accept="image/*" className="inp" style={{ paddingTop: 9 }} onChange={(e) => setEditForm((p) => ({ ...p, cover: e.target.files?.[0] || null }))} />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
+              <button type="button" className="btn btn-out" onClick={() => setEditOpen(false)} disabled={editBusy}>Cancel</button>
+              <button type="submit" className="btn btn-pri" disabled={editBusy}>{editBusy ? "Saving…" : "Save Changes"}</button>
+            </div>
+          </form>
         </Modal>
       )}
 

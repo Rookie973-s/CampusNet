@@ -10,6 +10,8 @@ class Department(models.Model):
 
     class Meta:
         ordering = ["order", "name"]
+        verbose_name = "Academic Faculty"
+        verbose_name_plural = "Academic Faculties"
 
     def __str__(self):
         return self.name

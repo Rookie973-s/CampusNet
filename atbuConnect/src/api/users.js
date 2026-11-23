@@ -79,15 +79,15 @@ export async function getVerificationStatus() {
   return api.get("/verification/status/", { auth: "required" });
 }
 
-export async function applyStudentVerification({ faculty, departmentName, level, matricNumber, reason, consent, document }) {
+export async function applyStudentVerification({ faculty, departmentName, level, reason, consent, document, livenessVideo }) {
   const form = new FormData();
   if (faculty) form.append("faculty", faculty);
   if (departmentName) form.append("department_name", departmentName);
   form.append("level", level);
-  form.append("matric_number", matricNumber);
   form.append("reason", reason || "");
   form.append("consent", consent ? "true" : "false");
   if (document) form.append("supporting_document", document);
+  if (livenessVideo) form.append("liveness_video", livenessVideo);
   return apiUpload("/verification/apply/", form);
 }
 

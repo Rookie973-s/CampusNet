@@ -30,13 +30,13 @@ const GlobalStyle = () => (
       --brd: rgba(17,24,39,.09);
       --brdS: rgba(17,24,39,.18);
       --accent: #2563EB;
-      --edge-hi: rgba(255,255,255,.8);
-      --edge-lo: rgba(17,24,39,.06);
-      --sh-1: 0 1px 3px rgba(17,24,39,.06), 0 4px 12px -4px rgba(17,24,39,.08);
-      --sh-2: 0 4px 10px rgba(17,24,39,.08), 0 12px 24px -8px rgba(17,24,39,.12);
-      --sh-3: 0 12px 28px -6px rgba(17,24,39,.18), 0 24px 48px -14px rgba(17,24,39,.22);
-      --sh-in: none;
-      --sh-press: none;
+      --edge-hi: rgba(255,255,255,.92);
+      --edge-lo: rgba(17,24,39,.08);
+      --sh-1: 0 1px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, 0 3px 8px rgba(17,24,39,.07), 0 10px 22px -10px rgba(17,24,39,.14);
+      --sh-2: 0 1px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, 0 6px 14px rgba(17,24,39,.09), 0 18px 34px -12px rgba(17,24,39,.20);
+      --sh-3: 0 1px 0 var(--edge-hi) inset, 0 12px 28px -6px rgba(17,24,39,.18), 0 28px 56px -14px rgba(17,24,39,.26);
+      --sh-in: inset 0 2px 5px rgba(17,24,39,.08);
+      --sh-press: inset 0 2px 6px rgba(17,24,39,.14);
       --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 26px;
       --ease-liquid: cubic-bezier(.22,1.15,.36,1);
     }

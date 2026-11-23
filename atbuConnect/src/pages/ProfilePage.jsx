@@ -4,6 +4,7 @@ import Ic from '../components/Ic';
 import { Skel, Modal } from '../components/ui/shared';
 import UserAvatar from '../components/ui/UserAvatar';
 import VerifiedBadge from '../components/ui/VerifiedBadge';
+import LivenessScanner from '../components/ui/LivenessScanner';
 import ActivityChart from '../components/profile/ActivityChart';
 import { listQuestions, deleteQuestion } from '../api/questions';
 import {
@@ -63,7 +64,7 @@ function ProfilePage({ user, toast, onUserUpdate, onLogin, onLogout }) {
 
   // Student Verification state
   const [verStatus, setVerStatus] = useState(null);
-  const [verForm, setVerForm] = useState({ faculty: "", departmentName: "", level: "200 Level", matricNumber: "", reason: "", consent: false, document: null });
+  const [verForm, setVerForm] = useState({ faculty: "", departmentName: "", level: "200 Level", reason: "", consent: false, document: null, livenessVideo: null });
   const [verBusy, setVerBusy] = useState(false);
   const [adminVerApps, setAdminVerApps] = useState([]);
 
@@ -328,10 +329,9 @@ function ProfilePage({ user, toast, onUserUpdate, onLogin, onLogout }) {
               {user.isVerifiedStudent && <VerifiedBadge size={20} showLabel />}
             </h1>
             <p>{subtitle || t("profile.helloSub")}</p>
-            {/* Compact horizontal icon-only badges: tap any icon to reveal full info */}
+            {/* Compact horizontal icon-only badges (no matric number): tap any icon to reveal full info */}
             {(() => {
               const items = [
-                user.matric && { id: "matric", ic: "hash", color: "var(--accent)", title: "Matric Number", detail: user.matric },
                 user.isVerifiedStaff && { id: "sug", ic: "shield", color: "#3B82F6", title: "Verified SUG / Staff", detail: "Official verified SUG representative on CampusNetwork." },
                 perm.can_upload && { id: "rep", ic: "file", color: "#8B5CF6", title: t("profile.classRep"), detail: "Authorized to upload course PDFs to the Library." },
                 user.emailVerified
@@ -523,109 +523,155 @@ function ProfilePage({ user, toast, onUserUpdate, onLogin, onLogout }) {
                     </div>
                   ) : (
                     <form onSubmit={handleApplyVerification} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      {verStatus?.is_expired && (
+                        <div className="auth-alert" style={{ background: "rgba(245,158,11,.14)", color: "#D97706", borderColor: "rgba(245,158,11,.35)" }}>
+                          Your 3-month student verification has expired. Pay ₦1,500 and complete a quick camera liveness scan to renew (your previous ID document is still on file).
+                        </div>
+                      )}
                       {verStatus?.application?.review_note && (
                         <div className="auth-alert">Reviewer feedback: {verStatus.application.review_note}</div>
                       )}
-                      <div className="sug-2">
-                        <div className="sug-field">
-                          <label htmlFor="sv-fac">Faculty</label>
-                          <select id="sv-fac" className="inp" value={verForm.faculty} onChange={(e) => setVerForm((p) => ({ ...p, faculty: e.target.value }))}>
-                            <option value="">Select Faculty</option>
-                            {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                          </select>
-                        </div>
-                        <div className="sug-field">
-                          <label htmlFor="sv-dep">Department</label>
-                          <input id="sv-dep" className="inp" value={verForm.departmentName} onChange={(e) => setVerForm((p) => ({ ...p, departmentName: e.target.value }))} placeholder="e.g. Computer Science" />
-                        </div>
-                      </div>
-                      <div className="sug-2">
-                        <div className="sug-field">
-                          <label htmlFor="sv-lvl">Academic Level *</label>
-                          <select id="sv-lvl" className="inp" value={verForm.level} onChange={(e) => setVerForm((p) => ({ ...p, level: e.target.value }))}>
-                            {["100 Level", "200 Level", "300 Level", "400 Level", "500 Level", "Postgraduate"].map((l) => <option key={l} value={l}>{l}</option>)}
-                          </select>
-                        </div>
-                        <div className="sug-field">
-                          <label htmlFor="sv-mat">Matric Number * (e.g. 21/62525/U)</label>
-                          <input id="sv-mat" className="inp" required value={verForm.matricNumber} onChange={(e) => setVerForm((p) => ({ ...p, matricNumber: e.target.value }))} placeholder="21/62525/U" />
-                        </div>
-                      </div>
-                      <div className="sug-field">
-                        <label htmlFor="sv-doc">Supporting ID / Registration Document (optional, stored privately)</label>
-                        <input id="sv-doc" type="file" accept="image/*,.pdf" className="inp" style={{ paddingTop: 10 }} onChange={(e) => setVerForm((p) => ({ ...p, document: e.target.files?.[0] || null }))} />
-                      </div>
-                      <div className="sug-field">
-                        <label htmlFor="sv-rsn">Short Note (optional)</label>
-                        <textarea id="sv-rsn" className="inp" style={{ minHeight: 68 }} value={verForm.reason} onChange={(e) => setVerForm((p) => ({ ...p, reason: e.target.value }))} placeholder="Anything helpful for reviewers…" />
-                      </div>
-                      <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13, color: "var(--mut)", cursor: "pointer" }}>
-                        <input type="checkbox" checked={verForm.consent} onChange={(e) => setVerForm((p) => ({ ...p, consent: e.target.checked }))} style={{ marginTop: 3 }} />
-                        <span>I confirm my student details are accurate and consent to CampusNetwork reviewing my verification application under its Privacy Policy.</span>
-                      </label>
-                      <div style={{ padding: 14, borderRadius: 14, background: "var(--surfH)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 10 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                          <div>
-                            <strong style={{ fontSize: 14 }}>Verification Fee: ₦1,500 (Paystack Bank Transfer)</strong>
-                            <p style={{ fontSize: 12.5, color: "var(--mut)" }}>Pay via dedicated virtual bank account or Paystack checkout to unlock verified perks (multiple images, videos, 1,200-word posts, ad-free toggle).</p>
-                          </div>
-                          <button
-                            type="button"
-                            className="btn btn-pri"
-                            style={{ height: 38, minHeight: 38, padding: "0 16px", fontSize: 13 }}
-                            disabled={verPayBusy}
-                            onClick={async () => {
-                              setVerPayBusy(true);
-                              try {
-                                const res = await initiateVerificationPayment();
-                                setVerPay(res);
-                                toast(res.message, res.enabled ? "success" : "info");
-                              } catch (err) {
-                                toast(err.message || "Could not start Paystack payment.", "error");
-                              } finally { setVerPayBusy(false); }
-                            }}
-                          >
-                            {verPayBusy ? "Generating account…" : "Pay ₦1,500 with Paystack"}
-                          </button>
-                        </div>
-                        {verPay && (
-                          <div style={{ padding: 12, borderRadius: 12, background: "var(--surf)", border: "1px solid var(--brdS)", fontSize: 13, display: "flex", flexDirection: "column", gap: 6 }}>
-                            <p style={{ color: "var(--mut)" }}>{verPay.message}</p>
-                            {verPay.account_number && (
-                              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, padding: "8px 0" }}>
-                                <div><span style={{ color: "var(--faint)", fontSize: 11 }}>BANK</span><strong style={{ display: "block" }}>{verPay.bank_name}</strong></div>
-                                <div><span style={{ color: "var(--faint)", fontSize: 11 }}>ACCOUNT NUMBER</span><strong style={{ display: "block", fontSize: 16 }}>{verPay.account_number}</strong></div>
-                                <div><span style={{ color: "var(--faint)", fontSize: 11 }}>ACCOUNT NAME</span><strong style={{ display: "block" }}>{verPay.account_name}</strong></div>
+                      {(() => {
+                        const isRenewal = !!(verStatus?.is_expired && verStatus?.has_existing_document);
+                        const selectedFac = depts.find((d) => String(d.id) === String(verForm.faculty));
+                        const subDepts = selectedFac?.sub_departments || [];
+                        const paidOk = !!(verStatus?.has_paid_verification || !verStatus?.payment_required || user.role === "admin");
+                        const docOk = isRenewal || !!verForm.document;
+                        const canPay = verForm.consent && !verPayBusy;
+                        const canSubmit = verForm.consent && paidOk && docOk && !!verForm.livenessVideo && !verBusy;
+                        return (
+                          <>
+                            <div className="sug-2">
+                              <div className="sug-field">
+                                <label htmlFor="sv-fac">Academic Faculty *</label>
+                                <select id="sv-fac" className="inp" required value={verForm.faculty} onChange={(e) => setVerForm((p) => ({ ...p, faculty: e.target.value, departmentName: "" }))}>
+                                  <option value="">Select Faculty</option>
+                                  {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                </select>
+                              </div>
+                              <div className="sug-field">
+                                <label htmlFor="sv-dep">Department *</label>
+                                {subDepts.length > 0 ? (
+                                  <select id="sv-dep" className="inp" required value={verForm.departmentName} onChange={(e) => setVerForm((p) => ({ ...p, departmentName: e.target.value }))}>
+                                    <option value="">Select Department</option>
+                                    {subDepts.map((sd) => <option key={sd.id} value={sd.name}>{sd.name}</option>)}
+                                  </select>
+                                ) : (
+                                  <input id="sv-dep" className="inp" required value={verForm.departmentName} onChange={(e) => setVerForm((p) => ({ ...p, departmentName: e.target.value }))} placeholder={verForm.faculty ? "Enter department name" : "Select a faculty first"} />
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="sug-field">
+                              <label htmlFor="sv-lvl">Academic Level *</label>
+                              <select id="sv-lvl" className="inp" value={verForm.level} onChange={(e) => setVerForm((p) => ({ ...p, level: e.target.value }))}>
+                                {["100 Level", "200 Level", "300 Level", "400 Level", "500 Level", "Postgraduate"].map((l) => <option key={l} value={l}>{l}</option>)}
+                              </select>
+                            </div>
+
+                            {!isRenewal ? (
+                              <div className="sug-field">
+                                <label htmlFor="sv-doc">Admission Form or Student ID Card * (Required, stored privately)</label>
+                                <input id="sv-doc" type="file" accept="image/*,.pdf" required className="inp" style={{ paddingTop: 9 }} onChange={(e) => setVerForm((p) => ({ ...p, document: e.target.files?.[0] || null }))} />
+                              </div>
+                            ) : (
+                              <div style={{ padding: "10px 14px", borderRadius: 12, background: "rgba(16,185,129,.12)", border: "1px solid rgba(16,185,129,.3)", fontSize: 13, color: "#059669" }}>
+                                Your previously verified ID document is still valid on file — only payment + quick camera liveness scan is required to renew for another 3 months.
                               </div>
                             )}
-                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                              {verPay.checkout_url && (
-                                <a href={verPay.checkout_url} target="_blank" rel="noopener noreferrer" className="btn btn-navy" style={{ height: 36, minHeight: 36, padding: "0 14px", fontSize: 12.5 }}>
-                                  Open Paystack Checkout
-                                </a>
-                              )}
-                              {verPay.reference && (
-                                <button
-                                  type="button"
-                                  className="btn btn-out"
-                                  style={{ height: 36, minHeight: 36, padding: "0 14px", fontSize: 12.5 }}
-                                  onClick={async () => {
-                                    try {
-                                      const v = await verifyPaystackPayment(verPay.reference);
-                                      toast(v.verified ? "Payment confirmed!" : (v.detail || "Transfer not confirmed yet — try again in a few seconds."), v.verified ? "success" : "info");
-                                    } catch (err) { toast(err.message || "Could not verify payment.", "error"); }
-                                  }}
-                                >
-                                  I&apos;ve Sent the Transfer — Verify
-                                </button>
+
+                            <LivenessScanner
+                              videoFile={verForm.livenessVideo}
+                              onComplete={(f) => setVerForm((p) => ({ ...p, livenessVideo: f }))}
+                              disabled={verBusy}
+                            />
+
+                            <div className="sug-field">
+                              <label htmlFor="sv-rsn">Short Note (optional)</label>
+                              <textarea id="sv-rsn" className="inp" style={{ minHeight: 64 }} value={verForm.reason} onChange={(e) => setVerForm((p) => ({ ...p, reason: e.target.value }))} placeholder="Anything helpful for reviewers…" />
+                            </div>
+
+                            <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13, color: "var(--mut)", cursor: "pointer" }}>
+                              <input type="checkbox" checked={verForm.consent} onChange={(e) => setVerForm((p) => ({ ...p, consent: e.target.checked }))} style={{ marginTop: 3 }} />
+                              <span>I confirm my student details are accurate and consent to CampusNetwork reviewing my verification application, ID document, and camera scan under its Privacy Policy.</span>
+                            </label>
+
+                            <div style={{ padding: 14, borderRadius: 14, background: "var(--surfH)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 10 }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                <div>
+                                  <strong style={{ fontSize: 14 }}>
+                                    Verification Fee: ₦1,500 / 3 Months {verStatus?.has_paid_verification ? "· Paid ✓" : "(Paystack Bank Transfer)"}
+                                  </strong>
+                                  <p style={{ fontSize: 12.5, color: "var(--mut)" }}>
+                                    {verStatus?.has_paid_verification
+                                      ? "Your ₦1,500 payment is confirmed! You can now submit your verification."
+                                      : "Check the agreement box above first, then pay ₦1,500 via Paystack Bank Transfer to unlock the Apply button."}
+                                  </p>
+                                </div>
+                                {!verStatus?.has_paid_verification && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-pri"
+                                    style={{ height: 38, minHeight: 38, padding: "0 16px", fontSize: 13 }}
+                                    disabled={!canPay}
+                                    onClick={async () => {
+                                      setVerPayBusy(true);
+                                      try {
+                                        const res = await initiateVerificationPayment();
+                                        setVerPay(res);
+                                        toast(res.message, res.enabled ? "success" : "info");
+                                      } catch (err) {
+                                        toast(err.message || "Could not start Paystack payment.", "error");
+                                      } finally { setVerPayBusy(false); }
+                                    }}
+                                  >
+                                    {verPayBusy ? "Generating account…" : "Pay ₦1,500 with Paystack"}
+                                  </button>
+                                )}
+                              </div>
+                              {verPay && !verStatus?.has_paid_verification && (
+                                <div style={{ padding: 12, borderRadius: 12, background: "var(--surf)", border: "1px solid var(--brdS)", fontSize: 13, display: "flex", flexDirection: "column", gap: 6 }}>
+                                  <p style={{ color: "var(--mut)" }}>{verPay.message}</p>
+                                  {verPay.account_number && (
+                                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, padding: "8px 0" }}>
+                                      <div><span style={{ color: "var(--faint)", fontSize: 11 }}>BANK</span><strong style={{ display: "block" }}>{verPay.bank_name}</strong></div>
+                                      <div><span style={{ color: "var(--faint)", fontSize: 11 }}>ACCOUNT NUMBER</span><strong style={{ display: "block", fontSize: 16 }}>{verPay.account_number}</strong></div>
+                                      <div><span style={{ color: "var(--faint)", fontSize: 11 }}>ACCOUNT NAME</span><strong style={{ display: "block" }}>{verPay.account_name}</strong></div>
+                                    </div>
+                                  )}
+                                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                    {verPay.checkout_url && (
+                                      <a href={verPay.checkout_url} target="_blank" rel="noopener noreferrer" className="btn btn-navy" style={{ height: 36, minHeight: 36, padding: "0 14px", fontSize: 12.5 }}>
+                                        Open Paystack Checkout
+                                      </a>
+                                    )}
+                                    {verPay.reference && (
+                                      <button
+                                        type="button"
+                                        className="btn btn-out"
+                                        style={{ height: 36, minHeight: 36, padding: "0 14px", fontSize: 12.5 }}
+                                        onClick={async () => {
+                                          try {
+                                            const v = await verifyPaystackPayment(verPay.reference);
+                                            toast(v.verified ? "Payment confirmed!" : (v.detail || "Transfer not confirmed yet — try again in a few seconds."), v.verified ? "success" : "info");
+                                            if (v.verified) getVerificationStatus().then(setVerStatus).catch(() => {});
+                                          } catch (err) { toast(err.message || "Could not verify payment.", "error"); }
+                                        }}
+                                      >
+                                        I&apos;ve Sent the Transfer — Verify
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
                               )}
                             </div>
-                          </div>
-                        )}
-                      </div>
-                      <button type="submit" className="btn btn-navy" style={{ alignSelf: "flex-start" }} disabled={verBusy}>
-                        {verBusy ? "Submitting…" : "Apply for Student Verification"}
-                      </button>
+
+                            <button type="submit" className="btn btn-navy" style={{ alignSelf: "flex-start" }} disabled={!canSubmit}>
+                              {verBusy ? "Submitting…" : isRenewal ? "Renew Student Verification" : "Apply for Student Verification"}
+                            </button>
+                          </>
+                        );
+                      })()}
                     </form>
                   )}
 
@@ -684,10 +730,6 @@ function ProfilePage({ user, toast, onUserUpdate, onLogin, onLogout }) {
                   </div>
 
                   <div className="sug-field"><label htmlFor="pf-ph">{t("sug.phone")}</label><input id="pf-ph" className="inp" type="tel" value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} /></div>
-                  <div className="sug-field"><label htmlFor="pf-mt">{t("auth.matric")}</label>
-                    <input id="pf-mt" className="inp" value={form.matric} disabled={!!user.matric} style={user.matric ? { opacity: .6, cursor: "not-allowed" } : undefined} onChange={(e) => setForm((p) => ({ ...p, matric: e.target.value }))} />
-                    {user.matric && <p className="sug-hint">{t("profile.matricLocked")}</p>}
-                  </div>
                   <div className="sug-field"><label htmlFor="pf-bio">{t("profile.bio")}</label><textarea id="pf-bio" className="inp" style={{ minHeight: 84 }} value={form.bio} onChange={(e) => setForm((p) => ({ ...p, bio: e.target.value }))} /></div>
                   <button type="button" className="btn btn-navy" style={{ alignSelf: "flex-start" }} onClick={saveSettings} disabled={saving} aria-busy={saving}>
                     {saving ? <><span className="auth-spinner" aria-hidden="true" />{t("common.saving")}</> : t("profile.saveChanges")}

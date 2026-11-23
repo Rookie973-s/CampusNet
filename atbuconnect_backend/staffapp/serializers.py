@@ -18,11 +18,16 @@ class StaffApplicationSerializer(serializers.ModelSerializer):
         model = StaffApplication
         fields = [
             "id", "first_name", "last_name", "email", "phone", "profile_picture",
-            "profile_picture_url", "staff_id", "department", "role_title",
-            "academic_references", "bio", "why", "status", "created_at",
-            "review_note", "reviewed_at", "website",
+            "profile_picture_url", "staff_id", "department", "academic_department_name",
+            "role_title", "academic_references", "supporting_document", "liveness_video",
+            "bio", "why", "status", "created_at", "review_note", "reviewed_at", "website",
         ]
         read_only_fields = ["id", "status", "created_at", "review_note", "reviewed_at", "profile_picture_url"]
+        extra_kwargs = {
+            "staff_id": {"required": False, "allow_blank": True},
+            "supporting_document": {"required": False},
+            "liveness_video": {"required": False},
+        }
 
     def get_profile_picture_url(self, obj):
         if not obj.profile_picture:

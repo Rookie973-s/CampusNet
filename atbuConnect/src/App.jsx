@@ -38,7 +38,7 @@ import AiAskModal from "./modals/AiAskModal";
 
 import { fetchMe, logout as apiLogout, updateMe } from "./api/auth";
 import { tokenStore } from "./api/client";
-import { listNotifications, markAllRead as apiMarkAllRead, markRead as apiMarkRead } from "./api/notifications";
+import { listNotifications, markAllRead as apiMarkAllRead, markRead as apiMarkRead, clearAllNotifications as apiClearAllNotifs } from "./api/notifications";
 
 const ROUTES = {
   home: "/", feed: "/feed", sug: "/sug", staff: "/sug",
@@ -149,6 +149,7 @@ export default function App() {
       notifs={notifs} unread={unread}
       onMarkAll={() => { setNotifs((p) => p.map((n) => ({ ...n, unread: false }))); if (user) apiMarkAllRead().catch(() => {}); }}
       onMarkOne={(id) => { setNotifs((p) => p.map((n) => (n.id === id ? { ...n, unread: false } : n))); if (user) apiMarkRead(id).catch(() => {}); }}
+      onClearAll={() => { setNotifs([]); if (user) apiClearAllNotifs().catch(() => {}); toast("All notifications deleted.", "info"); }}
       drawerOpen={drawerOpen} onToggleDrawer={() => setDrawerOpen((p) => !p)}
       search={variant === "bar" ? <HeaderSearch onPick={handleViewQ} onPickUser={(u) => setSearchUserPopover({ userId: u.id })} /> : null}
     />

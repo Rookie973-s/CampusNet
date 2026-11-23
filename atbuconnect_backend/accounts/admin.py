@@ -62,10 +62,10 @@ class StudentVerificationApplicationAdmin(admin.ModelAdmin):
             app.status = StudentVerificationApplication.Status.APPROVED
             app.reviewed_by = request.user
             app.reviewed_at = timezone.now()
+            from datetime import timedelta
             app.save()
             app.user.is_verified_student = True
-            if app.matric_number and not app.user.matric_number:
-                app.user.matric_number = app.matric_number
+            app.user.verification_expires_at = timezone.now() + timedelta(days=90)
             app.user.save()
             notify(
                 app.user,

@@ -578,44 +578,96 @@ class FollowingListView(APIView):
         return Response(PublicProfileSerializer(users, many=True, context={"request": request}).data)
 
 
+def _has_paid_verification(user) -> bool:
+    """True if the user has a confirmed Paystack ₦1,500 verification payment usable for a new/renewal application."""
+    from advertising.models import PaymentTransaction
+    qs = PaymentTransaction.objects.filter(
+        user=user,
+        purpose=PaymentTransaction.Purpose.STUDENT_VERIFICATION,
+        status=PaymentTransaction.Status.PAID,
+    )
+    last_approved = StudentVerificationApplication.objects.filter(
+        user=user, status=StudentVerificationApplication.Status.APPROVED
+    ).order_by("-reviewed_at").first()
+    if last_approved and last_approved.reviewed_at:
+        qs = qs.filter(paid_at__gt=last_approved.reviewed_at)
+    return qs.exists()
+
+
 class StudentVerificationApplyView(APIView):
-    """POST /api/verification/apply/ — apply for student verification badge."""
+    """POST /api/verification/apply/ — apply or renew 3-month student verification badge."""
 
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 
     def post(self, request):
         user = request.user
-        if user.is_verified_student:
+        now = timezone.now()
+        is_active = bool(user.is_verified_student and (not user.verification_expires_at or now < user.verification_expires_at))
+        if is_active:
             return Response({"detail": "Your account is already student-verified."}, status=400)
         if StudentVerificationApplication.objects.filter(
             user=user, status=StudentVerificationApplication.Status.PENDING
         ).exists():
             return Response({"detail": "You already have a verification application pending review."}, status=400)
 
+        prev_with_doc = StudentVerificationApplication.objects.filter(
+            user=user, supporting_document__isnull=False
+        ).exclude(supporting_document="").order_by("-created_at").first()
+        is_renewal = bool(user.is_verified_student and user.verification_expires_at and now >= user.verification_expires_at and prev_with_doc)
+
+        # Enforce ₦1,500 Paystack payment unless admin or Paystack is not configured (local test mode)
+        from advertising.payments import get_payment_gateway
+        if not is_admin_or_mod(user) and get_payment_gateway().is_enabled() and not _has_paid_verification(user):
+            return Response(
+                {"detail": "Please complete the ₦1,500 Paystack verification payment before submitting your application."},
+                status=402,
+            )
+
         ser = StudentVerificationApplicationSerializer(data=request.data, context={"request": request})
         ser.is_valid(raise_exception=True)
-        app = ser.save(user=user, status=StudentVerificationApplication.Status.PENDING)
+        has_new_doc = bool(request.FILES.get("supporting_document"))
+        if not has_new_doc and not is_renewal and not is_admin_or_mod(user) and request.content_type and "multipart" in request.content_type:
+            return Response(
+                {"supporting_document": ["Please upload your Admission Form or Student ID card."]},
+                status=400,
+            )
+        save_kwargs = {"user": user, "status": StudentVerificationApplication.Status.PENDING, "is_renewal": is_renewal}
+        if is_renewal and not has_new_doc and prev_with_doc:
+            save_kwargs["supporting_document"] = prev_with_doc.supporting_document
+        app = ser.save(**save_kwargs)
         return Response(StudentVerificationApplicationSerializer(app, context={"request": request}).data, status=201)
 
 
 class StudentVerificationStatusView(APIView):
-    """GET /api/verification/status/ — current user's student verification status."""
+    """GET /api/verification/status/ — current user's student verification status, 3-month expiry & payment state."""
 
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        latest = StudentVerificationApplication.objects.filter(user=request.user).select_related("faculty").first()
-        if not latest:
-            return Response({
-                "is_verified_student": request.user.is_verified_student,
-                "status": "approved" if request.user.is_verified_student else "not_applied",
-                "application": None,
-            })
+        user = request.user
+        now = timezone.now()
+        exp = getattr(user, "verification_expires_at", None)
+        is_expired = bool(user.is_verified_student and exp and now >= exp)
+        is_active = bool(user.is_verified_student and not is_expired)
+        latest = StudentVerificationApplication.objects.filter(user=user).select_related("faculty").first()
+        has_existing_doc = StudentVerificationApplication.objects.filter(
+            user=user, supporting_document__isnull=False
+        ).exclude(supporting_document="").exists()
+        paid = _has_paid_verification(user) or is_admin_or_mod(user)
+        from advertising.payments import get_payment_gateway
         return Response({
-            "is_verified_student": request.user.is_verified_student,
-            "status": latest.status,
-            "application": StudentVerificationApplicationSerializer(latest, context={"request": request}).data,
+            "is_verified_student": is_active,
+            "is_expired": is_expired,
+            "verification_expires_at": exp.isoformat() if exp else None,
+            "has_paid_verification": paid,
+            "payment_required": get_payment_gateway().is_enabled() and not is_admin_or_mod(user),
+            "has_existing_document": has_existing_doc,
+            "status": (
+                "expired" if is_expired
+                else (latest.status if latest else ("approved" if is_active else "not_applied"))
+            ),
+            "application": StudentVerificationApplicationSerializer(latest, context={"request": request}).data if latest else None,
         })
 
 
@@ -655,8 +707,7 @@ class StudentVerificationDecisionView(APIView):
                 app.payment_link = payment_link
             app.save()
             app.user.is_verified_student = True
-            if app.matric_number and not app.user.matric_number:
-                app.user.matric_number = app.matric_number
+            app.user.verification_expires_at = timezone.now() + timedelta(days=90)
             if app.level and not app.user.level:
                 app.user.level = app.level
             app.user.save()

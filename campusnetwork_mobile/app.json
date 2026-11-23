@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "CampusNetwork",
+    "slug": "campusnetwork",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#0A0A0D"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ng.edu.campusnetwork.app"
+    },
+    "android": {
+      "package": "ng.edu.campusnetwork.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0A0D"
+      }
+    },
+    "plugins": [
+      "expo-asset"
+    ]
+  }
+}
