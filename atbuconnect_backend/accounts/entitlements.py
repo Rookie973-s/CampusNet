@@ -32,14 +32,18 @@ def is_admin_or_mod(user) -> bool:
 
 def get_entitlements(user) -> dict:
     verified = is_verified_student(user)
+    verified_sug = bool(user and user.is_authenticated and getattr(user, "is_verified_staff", False))
     admin = is_admin_or_mod(user)
     privileged = verified or admin
+    media_privileged = verified or verified_sug or admin
     return {
         "is_verified_student": verified,
         "can_edit_own_posts": privileged,
         "can_delete_own_posts_anytime": privileged,
         "max_post_words": VERIFIED_MAX_POST_WORDS if privileged else ORDINARY_MAX_POST_WORDS,
         "max_post_chars": VERIFIED_MAX_POST_CHARS if privileged else ORDINARY_MAX_POST_CHARS,
+        "max_post_images": 6 if media_privileged else 1,
+        "can_upload_video": media_privileged,
         "exempt_from_username_cooldown": privileged,
         "username_cooldown_days": 0 if privileged else USERNAME_COOLDOWN_DAYS,
         "can_hide_ads": privileged,

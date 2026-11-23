@@ -22,7 +22,29 @@ export default function TopNav({
   const { t } = useI18n();
   const [notifOpen, setNotifOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const wrap = useRef(null);
+  const lastY = useRef(0);
+
+  useEffect(() => {
+    if (variant !== "bar") { setHidden(false); return; }
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(() => {
+        const y = window.scrollY || 0;
+        const delta = y - lastY.current;
+        if (y < 56 || notifOpen || userOpen || drawerOpen) setHidden(false);
+        else if (delta > 8) setHidden(true);
+        else if (delta < -8) setHidden(false);
+        lastY.current = y;
+        ticking = false;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [variant, notifOpen, userOpen, drawerOpen]);
 
   useEffect(() => {
     const close = (e) => { if (wrap.current && !wrap.current.contains(e.target)) { setNotifOpen(false); setUserOpen(false); } };
@@ -38,7 +60,7 @@ export default function TopNav({
   };
 
   return (
-    <header className={`tn tn--${variant}`} ref={wrap}>
+    <header className={`tn tn--${variant}${variant === "bar" && hidden ? " tn--hidden" : ""}`} ref={wrap}>
       <button type="button" className="tn-brand" onClick={() => onNav("home")} aria-label="CampusNetwork (Cenet) — home">
         <BrandMark size={38} />
         <span className="tn-brand-text">Campus<b>Network</b></span>

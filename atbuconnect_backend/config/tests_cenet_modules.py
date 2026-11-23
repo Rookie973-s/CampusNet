@@ -147,10 +147,12 @@ class AdvertisingModuleTests(TestCase):
         self.assertEqual(r.json()["status"], "pending")
         self.assertEqual(r.json()["payment_status"], "coming_soon")
 
-        # Payment initiation returns coming_soon
+        # Payment initiation returns not_configured when PAYSTACK_SECRET_KEY is unset
         pay = self.c.post(f"/api/ads/{cid}/initiate-payment/").json()
         self.assertFalse(pay["enabled"])
-        self.assertEqual(pay["status"], "coming_soon")
+        self.assertEqual(pay["status"], "not_configured")
+        # Server enforces NGN 4,000 cap on non-admin ad campaigns
+        self.assertLessEqual(float(r.json()["total_budget"]), 4000.0)
 
         # Non-admin cannot approve
         self.assertEqual(self.c.post(f"/api/ads/{cid}/approve/").status_code, 403)

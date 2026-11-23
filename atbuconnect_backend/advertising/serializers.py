@@ -88,7 +88,8 @@ class CampaignSerializer(serializers.ModelSerializer):
         return 1
 
     def get_payment_gateway_status(self, obj):
-        return "coming_soon"
+        from .payments import get_payment_gateway
+        return "paystack_live" if get_payment_gateway().is_enabled() else "coming_soon"
 
     def validate_image(self, f):
         if not f:
@@ -115,11 +116,27 @@ class CampaignSerializer(serializers.ModelSerializer):
         budget = attrs.get("total_budget", getattr(self.instance, "total_budget", None))
         if budget is not None and budget <= 0:
             raise serializers.ValidationError({"total_budget": "Total budget must be greater than zero."})
+        # Server-authoritative dynamic ad pricing capped at NGN 4,000 for non-admin advertisers
+        req = self.context.get("request")
+        is_admin = bool(req and req.user.is_authenticated and (req.user.is_superuser or getattr(req.user, "role", "") == "admin"))
+        if start and end and not is_admin:
+            from .payments import MAX_AD_PRICE_NGN, calculate_ad_price
+            est = calculate_ad_price(
+                start,
+                end,
+                targeting=attrs.get("targeting", getattr(self.instance, "targeting", {})),
+                placements=attrs.get("placements", getattr(self.instance, "placements", ["feed"])),
+            )
+            attrs["total_budget"] = min(Decimal(est["amount_ngn"]), MAX_AD_PRICE_NGN)
+        elif budget is not None and budget > Decimal("4000.00") and not is_admin:
+            attrs["total_budget"] = Decimal("4000.00")
+
         daily = attrs.get("daily_budget", getattr(self.instance, "daily_budget", None))
         if daily is not None and daily <= 0:
             raise serializers.ValidationError({"daily_budget": "Daily budget must be greater than zero."})
-        if budget is not None and daily is not None and daily > budget:
-            raise serializers.ValidationError({"daily_budget": "Daily budget cannot exceed total budget."})
+        eff_budget = attrs.get("total_budget", budget)
+        if eff_budget is not None and daily is not None and daily > eff_budget:
+            attrs["daily_budget"] = eff_budget
 
         placements = attrs.get("placements")
         if placements is not None and not isinstance(placements, list):

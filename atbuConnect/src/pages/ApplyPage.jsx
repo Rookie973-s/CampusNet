@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Ic from '../components/Ic';
 import { listDepartments } from '../api/departments';
-import { submitApplication, checkApplicationStatus } from '../api/applications';
+import { submitApplication, checkApplicationStatus, cancelSugStatus, cancelPendingSugApplication } from '../api/applications';
+import { flattenMe } from '../api/auth';
 import { ApiError } from '../api/client';
 import { useI18n } from '../i18n';
 
@@ -40,7 +41,7 @@ function Field({ id, label, error, hint, children }) {
   );
 }
 
-function ApplyPage({ toast }) {
+function ApplyPage({ user, onUserUpdate, toast }) {
   const { t } = useI18n();
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
@@ -54,11 +55,19 @@ function ApplyPage({ toast }) {
   const [statusEmail, setStatusEmail] = useState("");
   const [statusResult, setStatusResult] = useState(null);
   const [checking, setChecking] = useState(false);
+  const [myPending, setMyPending] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
   const head = useRef(null);
   const photoInput = useRef(null);
   const sending = useRef(false);
 
   useEffect(() => { listDepartments().then(setDepts).catch(() => {}); }, []);
+  useEffect(() => {
+    if (!user?.email || user?.isVerifiedStaff) { setMyPending(null); return; }
+    checkApplicationStatus(user.email)
+      .then((r) => { if (r?.found && r.status === "pending") setMyPending(r); else setMyPending(null); })
+      .catch(() => setMyPending(null));
+  }, [user?.email, user?.isVerifiedStaff]);
   useEffect(() => { head.current?.focus({ preventScroll: true }); }, [step]);
   useEffect(() => {
     if (!photo) { setPhotoPreview(null); return; }
@@ -132,6 +141,68 @@ function ApplyPage({ toast }) {
     } catch { toast("Could not check status.", "error"); }
     finally { setChecking(false); }
   };
+
+  const handleCancelSug = async () => {
+    if (!window.confirm("Are you sure you want to cancel your Verified SUG status? You will lose your SUG badge and directory listing until re-approved.")) return;
+    setCancelling(true);
+    try {
+      const res = await cancelSugStatus();
+      if (res.user && onUserUpdate) onUserUpdate(flattenMe(res.user));
+      toast(res.detail || "SUG status cancelled.", "info");
+    } catch (e) {
+      toast(e.message || "Could not cancel SUG status.", "error");
+    } finally { setCancelling(false); }
+  };
+
+  const handleCancelPending = async () => {
+    if (!window.confirm("Withdraw your pending SUG application?")) return;
+    setCancelling(true);
+    try {
+      const res = await cancelPendingSugApplication();
+      setMyPending(null);
+      toast(res.detail || "Pending application withdrawn.", "info");
+    } catch (e) {
+      toast(e.message || "Could not withdraw application.", "error");
+    } finally { setCancelling(false); }
+  };
+
+  if (user?.isVerifiedStaff) return (
+    <div className="sug-wrap">
+      <div className="sug-card sug-done fu" role="status">
+        <span className="sug-tick" style={{ background: "rgba(37,99,235,.16)" }}><Ic n="shield" s={38} c="var(--accent)" /></span>
+        <h1>You Already Have Verified SUG Status</h1>
+        <p>
+          Your account (<strong>@{user.username}</strong>) is already verified as an SUG Representative on CampusNetwork.
+          You cannot submit another SUG application unless you cancel your current SUG status first.
+        </p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center", marginTop: 6 }}>
+          <button type="button" className="btn btn-navy" onClick={() => navigate("/sug")}>View SUG Directory</button>
+          <button type="button" className="btn btn-out" style={{ color: "#DC2626" }} onClick={handleCancelSug} disabled={cancelling}>
+            {cancelling ? "Cancelling…" : "Cancel My SUG Status"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (myPending) return (
+    <div className="sug-wrap">
+      <div className="sug-card sug-done fu" role="status">
+        <span className="sug-tick" style={{ background: "rgba(245,158,11,.18)" }}><Ic n="clock" s={38} c="#D97706" /></span>
+        <h1>SUG Application Already Pending</h1>
+        <p>
+          Your application for <strong>{myPending.role_title}</strong> is currently under review by the CampusNetwork administrators.
+          You cannot submit a duplicate application unless you withdraw this one first.
+        </p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center", marginTop: 6 }}>
+          <button type="button" className="btn btn-navy" onClick={() => navigate("/")}>Go Home</button>
+          <button type="button" className="btn btn-out" style={{ color: "#DC2626" }} onClick={handleCancelPending} disabled={cancelling}>
+            {cancelling ? "Withdrawing…" : "Withdraw Application"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   if (submitted) return (
     <div className="sug-wrap">

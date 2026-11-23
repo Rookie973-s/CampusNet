@@ -1,7 +1,7 @@
 from django.contrib import admin, messages
 from django.utils import timezone
 
-from .models import AdClick, AdImpression, Campaign
+from .models import AdClick, AdImpression, Campaign, PaymentTransaction
 
 
 @admin.register(Campaign)
@@ -40,3 +40,14 @@ class AdImpressionAdmin(admin.ModelAdmin):
 @admin.register(AdClick)
 class AdClickAdmin(admin.ModelAdmin):
     list_display = ["campaign", "user", "placement", "created_at"]
+
+
+@admin.register(PaymentTransaction)
+class PaymentTransactionAdmin(admin.ModelAdmin):
+    list_display = [
+        "reference", "user", "purpose", "amount_ngn", "status",
+        "virtual_account_bank", "virtual_account_number", "paid_at", "created_at",
+    ]
+    list_filter = ["purpose", "status", "provider"]
+    search_fields = ["reference", "user__username", "user__email", "virtual_account_number"]
+    readonly_fields = ["raw_webhook", "created_at", "updated_at"]

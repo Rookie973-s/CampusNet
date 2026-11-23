@@ -1,3 +1,5 @@
+import secrets
+import string
 import uuid
 from datetime import timedelta
 
@@ -6,6 +8,13 @@ from django.db import models
 from django.utils import timezone
 
 User = settings.AUTH_USER_MODEL
+
+_BASE62 = string.ascii_letters + string.digits
+
+
+def generate_public_id(length: int = 8) -> str:
+    """Cryptographically random URL-safe base62 ID (e.g. wT9jsmhs) — ~218 trillion combinations."""
+    return "".join(secrets.choice(_BASE62) for _ in range(length))
 
 
 class Tag(models.Model):
@@ -16,6 +25,7 @@ class Tag(models.Model):
 
 
 class Question(models.Model):
+    public_id = models.CharField(max_length=16, unique=True, db_index=True, blank=True, default="")
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name="questions")
     department = models.ForeignKey(
         "departments.Department", on_delete=models.SET_NULL, null=True,
@@ -42,6 +52,15 @@ class Question(models.Model):
 
     def __str__(self):
         return self.title
+
+    def save(self, *args, **kwargs):
+        if not self.public_id:
+            for _ in range(10):
+                cand = generate_public_id(8)
+                if not Question.objects.filter(public_id=cand).exists():
+                    self.public_id = cand
+                    break
+        super().save(*args, **kwargs)
 
     @property
     def promoted(self):

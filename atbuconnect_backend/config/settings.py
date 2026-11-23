@@ -91,6 +91,9 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": env.db("DATABASE_URL", default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}")
 }
+# Connection pooling for high concurrency (100s of simultaneous users)
+DATABASES["default"]["CONN_MAX_AGE"] = env.int("DB_CONN_MAX_AGE", default=60)
+DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 
 if DATABASES["default"]["ENGINE"] == "django.db.backends.mysql":
     DATABASES["default"]["OPTIONS"] = {
@@ -185,9 +188,10 @@ VERIFIED_MAX_POST_WORDS = env.int("VERIFIED_MAX_POST_WORDS", default=1200)
 USERNAME_COOLDOWN_DAYS = env.int("USERNAME_COOLDOWN_DAYS", default=14)
 VERIFIED_COMMENT_BOOST = env.float("VERIFIED_COMMENT_BOOST", default=1.5)
 
-# ── Advertising / Future Payment Gateway (explicitly disabled) ────────────────
-AD_PAYMENTS_ENABLED = env.bool("AD_PAYMENTS_ENABLED", default=False)
+# ── Advertising & Paystack Gateway (DVA Bank Transfer + Webhooks) ─────────────
+AD_PAYMENTS_ENABLED = env.bool("AD_PAYMENTS_ENABLED", default=True)
 PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", default="")
+PAYSTACK_PREFERRED_BANK = env("PAYSTACK_PREFERRED_BANK", default="wema-bank")
 
 # ── Throttling (sensitive endpoints) ──────────────────────────────────────────
 REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {

@@ -30,6 +30,12 @@ export default function LandingPage({ onLogin, onRegister }) {
           </div>
         </div>
         <div className="lp-body">
+          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, margin: "0 auto", padding: "5px 12px", borderRadius: 999, background: "var(--surfH)", border: "1px solid var(--brd)", fontSize: 12, fontWeight: 700, color: "var(--mut)" }}>
+            <Ic n="cap" s={13} c="var(--accent)" />
+            <span>ATBU Bauchi</span>
+            <span style={{ opacity: .45 }}>·</span>
+            <span style={{ color: "var(--accent)" }}>More Schools Coming Soon</span>
+          </div>
           <h1>{t("landing.title")}</h1>
           <p>{t("landing.sub")}</p>
           <div className="lp-actions">

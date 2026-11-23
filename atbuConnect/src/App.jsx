@@ -183,7 +183,7 @@ export default function App() {
           <Route path="/q/:id" element={<QuestionRoute user={user} onLogin={promptLogin} toast={toast} />} />
           <Route path="/sug" element={<StaffPage user={user} onLogin={promptLogin} toast={toast} />} />
           <Route path="/staff" element={<StaffPage user={user} onLogin={promptLogin} toast={toast} />} />
-          <Route path="/apply" element={<ApplyPage toast={toast} />} />
+          <Route path="/apply" element={<ApplyPage user={user} onUserUpdate={setUser} toast={toast} />} />
           <Route path="/profile" element={<ProfilePage user={user} toast={toast} onUserUpdate={setUser} onLogin={openLogin} onLogout={handleLogout} />} />
           <Route path="/media" element={<LibraryPage user={user} onLogin={promptLogin} toast={toast} />} />
           <Route path="/library" element={<LibraryPage user={user} onLogin={promptLogin} toast={toast} />} />

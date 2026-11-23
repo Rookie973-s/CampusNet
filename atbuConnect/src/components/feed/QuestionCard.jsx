@@ -18,7 +18,7 @@ export default function QuestionCard({
   const authorBtn = useRef(null);
   const [menu, setMenu] = useState(false);
   const long = q.body.length > 260 || q.body.split("\n").length > 4;
-  const url = `${window.location.origin}/q/${q.id}`;
+  const url = `${window.location.origin}/q/${q.publicId || q.id}`;
 
   const deadline = q.deleteDeadline ? new Date(q.deleteDeadline) : null;
   const deadlineText = deadline ? deadline.toLocaleString(undefined, { hour: "numeric", minute: "2-digit", day: "numeric", month: "short" }) : "";

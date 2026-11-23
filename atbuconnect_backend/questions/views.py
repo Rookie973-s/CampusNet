@@ -54,7 +54,7 @@ def extract_and_record_mentions(text: str, actor, *, question=None, answer=None)
     for h in handles[:10]:
         q_filter |= Q(username__iexact=h)
     users = list(User.objects.filter(is_active=True).filter(q_filter))
-    link = f"/q/{question.pk}" if question else (f"/q/{answer.question_id}" if answer else "/feed")
+    link = f"/q/{question.public_id or question.pk}" if question else (f"/q/{answer.question.public_id or answer.question_id}" if answer else "/feed")
     for target in users:
         if target.pk == actor.pk:
             continue
@@ -132,6 +132,19 @@ class QuestionViewSet(viewsets.ModelViewSet):
         if self.action == "destroy":
             return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticatedOrReadOnly()]
+
+    def get_object(self):
+        """Resolve post by unguessable public_id (e.g. wT9jsmhs) OR legacy numeric pk."""
+        from django.http import Http404
+        lookup = str(self.kwargs.get(self.lookup_field, "")).strip()
+        qs = self.filter_queryset(self.get_queryset())
+        obj = qs.filter(public_id=lookup).first()
+        if obj is None and lookup.isdigit():
+            obj = qs.filter(pk=int(lookup)).first()
+        if obj is None:
+            raise Http404("Post not found.")
+        self.check_object_permissions(self.request, obj)
+        return obj
 
     def get_serializer_class(self):
         if self.action == "create":

@@ -15,8 +15,8 @@ from config.security import hash_ip, is_probable_bot
 from notifications.models import Notification
 from notifications.services import notify
 
-from .models import AdClick, AdImpression, Campaign
-from .payments import get_payment_gateway
+from .models import AdClick, AdImpression, Campaign, PaymentTransaction
+from .payments import VERIFICATION_FEE_NGN, calculate_ad_price, get_payment_gateway
 from .serializers import CampaignSerializer, ServedAdSerializer
 
 
@@ -175,18 +175,45 @@ class CampaignViewSet(viewsets.ModelViewSet):
         )
         return Response(CampaignSerializer(camp, context={"request": request}).data)
 
+    @action(detail=False, methods=["post"], url_path="estimate")
+    def estimate(self, request):
+        """Calculate dynamic ad price based on schedule, audience, and placements (capped at NGN 4,000)."""
+        from datetime import date as _date
+        try:
+            sd = _date.fromisoformat(str(request.data.get("start_date") or ""))
+            ed = _date.fromisoformat(str(request.data.get("end_date") or ""))
+        except Exception:
+            sd = timezone.localdate()
+            ed = sd + timedelta(days=6)
+        est = calculate_ad_price(
+            sd, ed,
+            targeting=request.data.get("targeting") or {},
+            placements=request.data.get("placements") or ["feed"],
+        )
+        return Response(est)
+
     @action(detail=True, methods=["post"], url_path="initiate-payment")
     def initiate_payment(self, request, pk=None):
         camp = self.get_object()
-        if camp.advertiser_id != request.user.pk:
+        if camp.advertiser_id != request.user.pk and not is_admin_or_mod(request.user):
             return Response({"detail": "Not authorized."}, status=403)
         gw = get_payment_gateway()
-        res = gw.initiate_bank_transfer(camp, request.user)
+        res = gw.initiate_payment(
+            user=request.user,
+            amount_ngn=camp.total_budget,
+            purpose=PaymentTransaction.Purpose.AD_CAMPAIGN,
+            campaign=camp,
+        )
         return Response({
             "enabled": res.enabled,
             "status": res.status,
             "message": res.message,
+            "amount_ngn": res.amount_ngn,
             "reference": res.reference,
+            "bank_name": res.bank_name,
+            "account_number": res.account_number,
+            "account_name": res.account_name,
+            "checkout_url": res.checkout_url,
         })
 
     @action(detail=False, methods=["get"])
@@ -334,3 +361,68 @@ class CampaignViewSet(viewsets.ModelViewSet):
         placement = (request.data.get("placement") or "feed")[:32]
         AdClick.objects.create(campaign=camp, user=u, ip_hash=ip_h, placement=placement)
         return Response({"recorded": True}, status=201)
+
+
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.views import APIView
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class PaystackWebhookView(APIView):
+    """POST /api/payments/paystack/webhook/ — HMAC-SHA512 verified Paystack webhook handler."""
+
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        sig = request.META.get("HTTP_X_PAYSTACK_SIGNATURE", "")
+        gw = get_payment_gateway()
+        result = gw.handle_webhook(request.body, sig)
+        return Response(result, status=result.get("status_code", 200))
+
+
+class VerifyPaymentView(APIView):
+    """POST /api/payments/verify/ — verify a Paystack payment reference on demand."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        ref = (request.data.get("reference") or "").strip()
+        if not ref:
+            return Response({"detail": "Provide a payment reference."}, status=400)
+        tx = PaymentTransaction.objects.filter(reference=ref).first()
+        if not tx or (tx.user_id != request.user.pk and not is_admin_or_mod(request.user)):
+            return Response({"detail": "Payment reference not found."}, status=404)
+        gw = get_payment_gateway()
+        return Response(gw.verify_reference(ref))
+
+
+class InitiateVerificationPaymentView(APIView):
+    """POST /api/verification/initiate-payment/ — initiate ₦1,500 Paystack DVA / transfer payment for Student Verification.
+
+    Note: Django Administrators can still manually verify any user in Django Admin without payment.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if request.user.is_verified_student:
+            return Response({"detail": "Your student account is already verified."}, status=400)
+        gw = get_payment_gateway()
+        res = gw.initiate_payment(
+            user=request.user,
+            amount_ngn=VERIFICATION_FEE_NGN,
+            purpose=PaymentTransaction.Purpose.STUDENT_VERIFICATION,
+        )
+        return Response({
+            "enabled": res.enabled,
+            "status": res.status,
+            "message": res.message,
+            "amount_ngn": res.amount_ngn,
+            "reference": res.reference,
+            "bank_name": res.bank_name,
+            "account_number": res.account_number,
+            "account_name": res.account_name,
+            "checkout_url": res.checkout_url,
+        })

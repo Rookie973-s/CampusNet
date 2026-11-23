@@ -57,6 +57,23 @@ export async function initiateAdPayment(id) {
   return api.post(`/ads/${id}/initiate-payment/`, {}, { auth: "required" });
 }
 
+export async function estimateAdPrice({ startDate, endDate, targeting, placements }) {
+  return api.post("/ads/estimate/", {
+    start_date: startDate,
+    end_date: endDate,
+    targeting: targeting || {},
+    placements: placements || ["feed"],
+  }, { auth: "required" });
+}
+
+export async function initiateVerificationPayment() {
+  return api.post("/verification/initiate-payment/", {}, { auth: "required" });
+}
+
+export async function verifyPaystackPayment(reference) {
+  return api.post("/payments/verify/", { reference }, { auth: "required" });
+}
+
 export async function getAdAnalytics({ range = "30d", campaignId = "", all = false } = {}) {
   const params = new URLSearchParams({ range });
   if (campaignId) params.set("campaign_id", campaignId);

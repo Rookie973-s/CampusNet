@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import Ic from "../components/Ic";
-import { Skel } from "../components/ui/shared";
+import { Skel, Modal } from "../components/ui/shared";
 import {
   listCampaigns, createCampaign, pauseCampaign, resumeCampaign,
-  approveCampaign, rejectCampaign, initiateAdPayment, getAdAnalytics,
+  approveCampaign, rejectCampaign, initiateAdPayment, verifyPaystackPayment, getAdAnalytics,
 } from "../api/ads";
 import { listDepartments } from "../api/departments";
 import { COMMUNITY_CATEGORIES } from "../api/communities";
@@ -190,7 +190,7 @@ export default function AdsPage({ user, onLogin, toast }) {
         endDate: wiz.endDate,
         activeDays: wiz.activeDays,
         currency: wiz.currency,
-        totalBudget: wiz.totalBudget,
+        totalBudget: estimatedPrice,
         dailyBudget: wiz.dailyBudget || null,
         saveAs,
       });
@@ -203,11 +203,29 @@ export default function AdsPage({ user, onLogin, toast }) {
     } finally { setSubmitting(false); }
   };
 
+  const [payModal, setPayModal] = useState(null);
+
+  const computeEstimatedBudget = () => {
+    const d1 = new Date(wiz.startDate);
+    const d2 = new Date(wiz.endDate);
+    const days = Math.max(1, Math.round((d2 - d1) / 86400000) + 1 || 1);
+    const base = 500;
+    const duration = days * 250;
+    const audience = wiz.audienceType === "broad" ? 800 : 350;
+    const placements = Math.max(0, (wiz.placements?.length || 1) - 1) * 250;
+    return Math.min(4000, Math.max(500, base + duration + audience + placements));
+  };
+  const estimatedPrice = computeEstimatedBudget();
+
   const handlePaymentClick = async (id) => {
     try {
       const res = await initiateAdPayment(id);
-      toast(res.message || "Payment Coming Soon!", "info");
-    } catch (e) { toast(e.message || "Payment gateway coming soon.", "info"); }
+      if (res.enabled) {
+        setPayModal(res);
+      } else {
+        toast(res.message || "Paystack key not configured on server yet.", "info");
+      }
+    } catch (e) { toast(e.message || "Could not start Paystack payment.", "error"); }
   };
 
   const s = analytics?.summary || {};
@@ -238,16 +256,16 @@ export default function AdsPage({ user, onLogin, toast }) {
       {/* ── TRACKER & MY ADS TAB (inspired by ADS TRACKER reference) ── */}
       {tab === "tracker" && (
         <div className="fu">
-          {/* Payment Coming Soon Notice Banner */}
-          <div className="raised" style={{ padding: "14px 18px", marginBottom: 18, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", background: "linear-gradient(135deg, rgba(37,99,235,.1), rgba(16,185,129,.08))" }}>
+          {/* Paystack Dynamic Pricing Banner */}
+          <div className="raised" style={{ padding: "14px 18px", marginBottom: 18, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <Ic n="info" s={18} c="var(--accent)" />
               <div style={{ fontSize: 13.5 }}>
-                <strong>Payment Coming Soon (Paystack &amp; Dynamic Bank Transfer):</strong>{" "}
-                <span style={{ color: "var(--mut)" }}>You can create and submit campaigns for admin review now. Paid billing activation will launch once Paystack is enabled.</span>
+                <strong>Paystack Bank Transfer (Dedicated Virtual Accounts):</strong>{" "}
+                <span style={{ color: "var(--mut)" }}>Ad pricing is calculated automatically from audience, placements &amp; days — capped at ₦4,000 max.</span>
               </div>
             </div>
-            <span className="badge-promo">Payment Coming Soon</span>
+            <span className="badge-promo">Max ₦4,000 / Ad</span>
           </div>
 
           {loading ? (
@@ -524,19 +542,17 @@ export default function AdsPage({ user, onLogin, toast }) {
 
           {step === 3 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 520 }}>
-              <div className="sug-2">
+              <div className="raised" style={{ padding: 18, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <div>
-                  <label className="lf-label">Total Campaign Budget (NGN) *</label>
-                  <input type="number" min="500" step="100" className="inp" value={wiz.totalBudget} onChange={(e) => setWiz((p) => ({ ...p, totalBudget: e.target.value }))} />
+                  <span style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", color: "var(--faint)" }}>Calculated Campaign Price</span>
+                  <strong style={{ display: "block", fontSize: 28, fontFamily: "'DM Sans',sans-serif" }}>₦{estimatedPrice.toLocaleString()}</strong>
+                  <small style={{ color: "var(--mut)" }}>Based on audience, placements &amp; schedule · Strictly capped at ₦4,000</small>
                 </div>
-                <div>
-                  <label className="lf-label">Daily Cap (optional, NGN)</label>
-                  <input type="number" min="100" step="100" className="inp" value={wiz.dailyBudget} onChange={(e) => setWiz((p) => ({ ...p, dailyBudget: e.target.value }))} placeholder="No daily cap" />
-                </div>
+                <span className="badge-promo">Paystack Bank Transfer</span>
               </div>
-              <div style={{ padding: 16, borderRadius: 14, background: "var(--surfH)", fontSize: 13.5, color: "var(--mut)", lineHeight: 1.65 }}>
-                <strong style={{ color: "var(--txt)", display: "block", marginBottom: 4 }}>Transparent Billing &amp; Payment Notice</strong>
-                Payment processing via Paystack &amp; Dynamic Bank Transfer is <strong>Coming Soon</strong>. Submitting a campaign does not charge you or auto-activate delivery—an administrator reviews every submission first. No guaranteed impressions or conversions are promised until official ad rates are published.
+              <div style={{ padding: 14, borderRadius: 12, background: "var(--surfH)", fontSize: 13.5, color: "var(--mut)", lineHeight: 1.6 }}>
+                <strong style={{ color: "var(--txt)", display: "block", marginBottom: 4 }}>Paystack Dedicated Virtual Account &amp; Admin Review</strong>
+                After submitting, click <strong>Pay</strong> on your campaign to receive your dedicated Paystack bank transfer account (or Paystack checkout link). Incoming transfers are automatically verified via Paystack webhook.
               </div>
             </div>
           )}
@@ -549,8 +565,8 @@ export default function AdsPage({ user, onLogin, toast }) {
                 <div><dt>Audience</dt><dd>{wiz.audienceType === "broad" ? "All ATBU Students" : `${wiz.faculties.join(", ") || "Any faculty"} · ${wiz.levels.join(", ") || "Any level"}`}</dd></div>
                 <div><dt>Placements</dt><dd>{wiz.placements.join(", ")}</dd></div>
                 <div><dt>Schedule</dt><dd>{wiz.startDate} to {wiz.endDate}</dd></div>
-                <div><dt>Total Budget</dt><dd>₦{Number(wiz.totalBudget || 0).toLocaleString()} ({wiz.currency})</dd></div>
-                <div><dt>Payment Gateway</dt><dd>Payment Coming Soon (Review Required)</dd></div>
+                <div><dt>Total Price</dt><dd>₦{estimatedPrice.toLocaleString()} (NGN)</dd></div>
+                <div><dt>Payment Gateway</dt><dd>Paystack Bank Transfer (DVA) · Admin Review</dd></div>
               </dl>
               <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
                 <button type="button" className="btn btn-out" onClick={() => handleCreateCampaign("draft")} disabled={submitting}>Save as Draft</button>
@@ -612,6 +628,45 @@ export default function AdsPage({ user, onLogin, toast }) {
             </div>
           )}
         </section>
+      )}
+
+      {payModal && (
+        <Modal onClose={() => setPayModal(null)} maxW={460} showClose label="Paystack Bank Transfer">
+          <div style={{ padding: "26px 22px 22px", display: "flex", flexDirection: "column", gap: 12 }}>
+            <h3 style={{ fontSize: 20 }}>Pay ₦{Number(payModal.amount_ngn || 0).toLocaleString()} via Paystack</h3>
+            <p style={{ fontSize: 13.5, color: "var(--mut)", lineHeight: 1.55 }}>{payModal.message}</p>
+            {payModal.account_number && (
+              <div style={{ padding: 14, borderRadius: 12, background: "var(--surfH)", border: "1px solid var(--brdS)", display: "flex", flexDirection: "column", gap: 6, fontSize: 13.5 }}>
+                <div><span style={{ color: "var(--faint)", fontSize: 11 }}>BANK NAME</span><strong style={{ display: "block" }}>{payModal.bank_name}</strong></div>
+                <div><span style={{ color: "var(--faint)", fontSize: 11 }}>ACCOUNT NUMBER</span><strong style={{ display: "block", fontSize: 18 }}>{payModal.account_number}</strong></div>
+                <div><span style={{ color: "var(--faint)", fontSize: 11 }}>ACCOUNT NAME</span><strong style={{ display: "block" }}>{payModal.account_name}</strong></div>
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 4 }}>
+              {payModal.checkout_url && (
+                <a href={payModal.checkout_url} target="_blank" rel="noopener noreferrer" className="btn btn-pri" style={{ flex: 1 }}>
+                  Open Paystack Checkout
+                </a>
+              )}
+              {payModal.reference && (
+                <button
+                  type="button"
+                  className="btn btn-out"
+                  style={{ flex: 1 }}
+                  onClick={async () => {
+                    try {
+                      const v = await verifyPaystackPayment(payModal.reference);
+                      toast(v.verified ? "Payment confirmed!" : (v.detail || "Transfer not confirmed yet."), v.verified ? "success" : "info");
+                      if (v.verified) { setPayModal(null); loadData(); }
+                    } catch (e) { toast(e.message || "Could not verify payment.", "error"); }
+                  }}
+                >
+                  Verify Transfer
+                </button>
+              )}
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

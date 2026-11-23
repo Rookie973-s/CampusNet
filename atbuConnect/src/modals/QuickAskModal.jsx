@@ -35,6 +35,8 @@ function QuickAskModal({ onClose, user, onLogin, toast, onPosted, editingQuestio
   const isEdit = !!editingQuestion;
   const maxWords = user?.entitlements?.max_post_words || (user?.isVerifiedStudent ? 1200 : 300);
   const maxChars = user?.entitlements?.max_post_chars || (user?.isVerifiedStudent ? 10000 : 2500);
+  const canMultiMedia = !!(user?.isVerifiedStudent || user?.isVerifiedStaff || user?.role === "admin" || user?.entitlements?.can_upload_video);
+  const maxImages = canMultiMedia ? MAX_IMAGES : 1;
 
   const [title, setTitle] = useState(editingQuestion?.title || "");
   const [q, setQ] = useState(editingQuestion?.body || "");
@@ -67,7 +69,12 @@ function QuickAskModal({ onClose, user, onLogin, toast, onPosted, editingQuestio
     for (const f of files) {
       if (!IMAGE_TYPES.includes(f.type)) { problem = t("composer.err.imageType"); continue; }
       if (f.size > MAX_IMAGE_MB * 1024 * 1024) { problem = t("composer.err.imageSize", { mb: MAX_IMAGE_MB }); continue; }
-      if (next.length >= MAX_IMAGES) { problem = t("composer.err.imageCount", { n: MAX_IMAGES }); break; }
+      if (next.length >= maxImages) {
+        problem = canMultiMedia
+          ? t("composer.err.imageCount", { n: maxImages })
+          : "Non-verified accounts can attach 1 image per post. Get verified to attach multiple images & videos.";
+        break;
+      }
       next.push({ file: f, url: URL.createObjectURL(f) });
     }
     setImages(next);
@@ -76,6 +83,10 @@ function QuickAskModal({ onClose, user, onLogin, toast, onPosted, editingQuestio
 
   const addVideo = async (f) => {
     if (!f) return;
+    if (!canMultiMedia) {
+      setErr("media", "Only Verified Students and Verified SUG representatives can upload videos.");
+      return;
+    }
     if (images.length) { setErr("media", t("composer.err.mix")); return; }
     if (!(f.type.startsWith("video/") || VIDEO_RE.test(f.name)) || !VIDEO_RE.test(f.name)) { setErr("media", t("composer.err.videoType")); return; }
     if (f.size > MAX_VIDEO_MB * 1024 * 1024) { setErr("media", t("composer.err.videoSize", { mb: MAX_VIDEO_MB })); return; }
@@ -224,13 +235,27 @@ function QuickAskModal({ onClose, user, onLogin, toast, onPosted, editingQuestio
 
           {!isEdit && (
             <div className="paper-attach">
-              <button type="button" className="paper-chip" onClick={() => imgInput.current?.click()} disabled={busy || !!video || images.length >= MAX_IMAGES}>
-                <Ic n="image" s={16} />{t("composer.addPhotos")}<small>{images.length}/{MAX_IMAGES}</small>
+              <button type="button" className="paper-chip" onClick={() => imgInput.current?.click()} disabled={busy || !!video || images.length >= maxImages}>
+                <Ic n="image" s={16} />{t("composer.addPhotos")}<small>{images.length}/{maxImages}</small>
               </button>
-              <button type="button" className="paper-chip" onClick={() => vidInput.current?.click()} disabled={busy || !!video || images.length > 0}>
-                <Ic n="video" s={16} />{t("composer.addVideo")}<small>≤ {MAX_VIDEO_SECONDS / 60} min</small>
+              <button
+                type="button"
+                className="paper-chip"
+                onClick={() => {
+                  if (!canMultiMedia) {
+                    setErr("media", "Only Verified Students and Verified SUG representatives can upload videos.");
+                    return;
+                  }
+                  vidInput.current?.click();
+                }}
+                disabled={busy || !!video || images.length > 0}
+                style={!canMultiMedia ? { opacity: 0.65 } : undefined}
+                title={!canMultiMedia ? "Verified Students & SUG only" : t("composer.addVideo")}
+              >
+                <Ic n={canMultiMedia ? "video" : "lock"} s={15} />{t("composer.addVideo")}
+                <small>{canMultiMedia ? `≤ ${MAX_VIDEO_SECONDS / 60} min` : "Verified only"}</small>
               </button>
-              <input ref={imgInput} type="file" accept={IMAGE_TYPES.join(",")} multiple hidden onChange={(e) => { addImages([...e.target.files]); e.target.value = ""; }} />
+              <input ref={imgInput} type="file" accept={IMAGE_TYPES.join(",")} multiple={canMultiMedia} hidden onChange={(e) => { addImages([...e.target.files]); e.target.value = ""; }} />
               <input ref={vidInput} type="file" accept="video/mp4,video/quicktime,.mp4,.m4v,.mov" hidden onChange={(e) => { addVideo(e.target.files?.[0]); e.target.value = ""; }} />
             </div>
           )}

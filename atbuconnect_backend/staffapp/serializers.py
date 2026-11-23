@@ -46,7 +46,17 @@ class StaffApplicationSerializer(serializers.ModelSerializer):
         return value
 
     def validate_email(self, value):
+        from accounts.models import User
         value = value.strip()
+        req = self.context.get("request")
+        if req and req.user.is_authenticated and getattr(req.user, "is_verified_staff", False):
+            raise serializers.ValidationError(
+                "You already have Verified SUG status. Cancel your current SUG status first if you wish to re-apply."
+            )
+        if User.objects.filter(email__iexact=value, is_verified_staff=True).exists():
+            raise serializers.ValidationError(
+                "This account already has Verified SUG status. Cancel your current SUG status first if you wish to re-apply."
+            )
         if StaffApplication.objects.filter(
             email__iexact=value, status=StaffApplication.Status.PENDING
         ).exists():

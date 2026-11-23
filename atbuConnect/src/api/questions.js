@@ -33,6 +33,7 @@ export function flattenAnswer(a) {
 export function flattenQuestion(q) {
   return {
     id: q.id,
+    publicId: q.public_id || String(q.id),
     userId: q.user?.id ?? null,
     username: q.user?.username || "",
     user: q.user?.name || "Unknown",

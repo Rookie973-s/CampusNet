@@ -145,12 +145,12 @@ class QuestionListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Question
         fields = [
-            "id", "user", "dept", "title", "body", "body_html", "tags", "time",
+            "id", "public_id", "user", "dept", "title", "body", "body_html", "tags", "time",
             "votes", "likes", "ans", "views", "answered",
             "voted", "liked", "saved", "media", "promoted",
             "can_delete", "can_edit", "delete_deadline", "created_at", "edited_at",
         ]
-        read_only_fields = ["id", "votes", "likes", "ans", "views", "answered", "created_at", "edited_at"]
+        read_only_fields = ["id", "public_id", "votes", "likes", "ans", "views", "answered", "created_at", "edited_at"]
 
     def get_can_delete(self, obj):
         from .permissions import can_delete_question
@@ -242,12 +242,22 @@ class QuestionCreateSerializer(serializers.ModelSerializer):
 
         images = request.FILES.getlist("images")
         videos = request.FILES.getlist("video")
+        ent = get_entitlements(request.user)
+        if videos and not ent["can_upload_video"]:
+            raise serializers.ValidationError({
+                "video": "Only Verified Students and Verified SUG representatives can upload videos."
+            })
         if len(videos) > 1:
             raise serializers.ValidationError({"video": "Attach only one video."})
         if images and videos:
             raise serializers.ValidationError({"media": "Attach either images or a video, not both."})
-        if len(images) > mv.MAX_IMAGES:
-            raise serializers.ValidationError({"images": f"You can attach at most {mv.MAX_IMAGES} images."})
+        max_allowed_images = min(mv.MAX_IMAGES, ent["max_post_images"])
+        if len(images) > max_allowed_images:
+            if max_allowed_images == 1:
+                raise serializers.ValidationError({
+                    "images": "Non-verified accounts can attach at most 1 image per post. Get verified to upload multiple images and videos."
+                })
+            raise serializers.ValidationError({"images": f"You can attach at most {max_allowed_images} images."})
         validated = []
         try:
             for f in images:

@@ -34,6 +34,8 @@ class StaffApplicationViewSet(
     def get_permissions(self):
         if self.action in ("create", "check_status"):
             return [permissions.AllowAny()]
+        if self.action in ("cancel_sug", "cancel_pending"):
+            return [permissions.IsAuthenticated()]
         return [IsReviewer()]
 
     def get_throttles(self):
@@ -84,3 +86,31 @@ class StaffApplicationViewSet(
     @action(detail=True, methods=["post"])
     def reject(self, request, pk=None):
         return self._decide(request, pk, False)
+
+    @action(detail=False, methods=["post"], url_path="cancel-sug")
+    def cancel_sug(self, request):
+        """Allow an already-verified SUG representative to voluntarily relinquish their SUG status."""
+        from accounts.models import User
+        from accounts.serializers import MeSerializer
+
+        user = request.user
+        if not user.is_verified_staff:
+            return Response({"detail": "You do not currently hold Verified SUG status."}, status=400)
+        user.is_verified_staff = False
+        if user.role == User.Role.STAFF:
+            user.role = User.Role.STUDENT
+        user.save(update_fields=["is_verified_staff", "role"])
+        return Response({
+            "detail": "Your Verified SUG status has been cancelled.",
+            "user": MeSerializer(user, context={"request": request}).data,
+        })
+
+    @action(detail=False, methods=["post"], url_path="cancel-pending")
+    def cancel_pending(self, request):
+        """Allow an authenticated applicant to withdraw their own pending SUG application."""
+        deleted, _ = StaffApplication.objects.filter(
+            email__iexact=request.user.email, status=StaffApplication.Status.PENDING
+        ).delete()
+        if not deleted:
+            return Response({"detail": "No pending SUG application found for your account."}, status=404)
+        return Response({"detail": "Your pending SUG application has been withdrawn."})

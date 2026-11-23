@@ -20,46 +20,46 @@ const GlobalStyle = () => (
        Shadows are blue-tinted so light mode never looks dirty-grey and dark mode
        never collapses into a black blob. */
     .light {
-      --bg: #EAF0F9;        /* page: a soft blue-grey so white cards stay distinguishable */
-      --surf: #FFFFFF;      /* raised surfaces */
-      --surfH: #F2F6FC;     /* hover / recessed wells */
-      --surfA: #E3EBF7;     /* active / selected */
-      --txt: #0E1A33;
-      --mut: #4A5B78;
-      --faint: #7384A3;
-      --brd: rgba(30,64,120,.10);    /* tonal hairline */
-      --brdS: rgba(30,64,120,.26);   /* control edge (inputs, outline buttons) */
+      --bg: #F4F5F7;
+      --surf: #FFFFFF;
+      --surfH: #F3F4F6;
+      --surfA: #E5E7EB;
+      --txt: #111827;
+      --mut: #4B5563;
+      --faint: #6B7280;
+      --brd: rgba(17,24,39,.09);
+      --brdS: rgba(17,24,39,.18);
       --accent: #2563EB;
-      --edge-hi: rgba(255,255,255,.95);
-      --edge-lo: rgba(30,64,120,.10);
-      --sh-1: 0 1px 0 var(--edge-hi) inset, 0 -1px 0 var(--edge-lo) inset, 0 2px 4px rgba(30,64,120,.07), 0 8px 18px -8px rgba(30,64,120,.20);
-      --sh-2: 0 1px 0 var(--edge-hi) inset, 0 -1px 0 var(--edge-lo) inset, 0 4px 8px rgba(30,64,120,.09), 0 18px 34px -12px rgba(30,64,120,.30);
-      --sh-3: 0 1px 0 var(--edge-hi) inset, 0 10px 20px rgba(30,64,120,.12), 0 34px 70px -18px rgba(14,26,51,.42);
-      --sh-in: inset 0 2px 5px rgba(30,64,120,.13), inset 0 -1px 0 rgba(255,255,255,.9);
-      --sh-press: inset 0 3px 7px rgba(30,64,120,.24);
-      --r-sm: 12px; --r-md: 16px; --r-lg: 22px; --r-xl: 28px;
+      --edge-hi: rgba(255,255,255,.8);
+      --edge-lo: rgba(17,24,39,.06);
+      --sh-1: 0 1px 3px rgba(17,24,39,.06), 0 4px 12px -4px rgba(17,24,39,.08);
+      --sh-2: 0 4px 10px rgba(17,24,39,.08), 0 12px 24px -8px rgba(17,24,39,.12);
+      --sh-3: 0 12px 28px -6px rgba(17,24,39,.18), 0 24px 48px -14px rgba(17,24,39,.22);
+      --sh-in: none;
+      --sh-press: none;
+      --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 26px;
       --ease-liquid: cubic-bezier(.22,1.15,.36,1);
     }
 
     .dark {
-      --bg: #0A1322;        /* Campus Connect navy (the old brown dark theme is replaced) */
-      --surf: #121F36;
-      --surfH: #0E182B;     /* recessed wells are darker than the surface */
-      --surfA: #1A2B48;
-      --txt: #E8EEFA;
-      --mut: #A3B3CF;
-      --faint: #7F91B2;
-      --brd: rgba(147,180,255,.10);
-      --brdS: rgba(147,180,255,.24);
+      --bg: #0A0A0D;        /* True neutral dark (not dark blue) */
+      --surf: #141418;
+      --surfH: #1C1C22;
+      --surfA: #24242D;
+      --txt: #F3F4F6;
+      --mut: #A1A1AA;
+      --faint: #71717A;
+      --brd: rgba(255,255,255,.08);
+      --brdS: rgba(255,255,255,.16);
       --accent: #60A5FA;
-      --edge-hi: rgba(160,190,255,.10);
-      --edge-lo: rgba(2,8,23,.55);
-      --sh-1: 0 1px 0 var(--edge-hi) inset, 0 -1px 0 var(--edge-lo) inset, 0 2px 4px rgba(2,8,23,.35), 0 10px 20px -10px rgba(2,8,23,.65);
-      --sh-2: 0 1px 0 var(--edge-hi) inset, 0 -1px 0 var(--edge-lo) inset, 0 4px 8px rgba(2,8,23,.40), 0 20px 36px -14px rgba(2,8,23,.75);
-      --sh-3: 0 1px 0 var(--edge-hi) inset, 0 12px 24px rgba(2,8,23,.5), 0 36px 72px -18px rgba(2,8,23,.85);
-      --sh-in: inset 0 2px 6px rgba(2,8,23,.6), inset 0 -1px 0 rgba(160,190,255,.07);
-      --sh-press: inset 0 3px 8px rgba(2,8,23,.7);
-      --r-sm: 12px; --r-md: 16px; --r-lg: 22px; --r-xl: 28px;
+      --edge-hi: rgba(255,255,255,.06);
+      --edge-lo: rgba(0,0,0,.55);
+      --sh-1: 0 2px 6px rgba(0,0,0,.35), 0 8px 18px -8px rgba(0,0,0,.6);
+      --sh-2: 0 4px 12px rgba(0,0,0,.45), 0 18px 34px -12px rgba(0,0,0,.72);
+      --sh-3: 0 12px 26px rgba(0,0,0,.55), 0 32px 64px -16px rgba(0,0,0,.82);
+      --sh-in: inset 0 2px 5px rgba(0,0,0,.45);
+      --sh-press: inset 0 2px 6px rgba(0,0,0,.55);
+      --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 26px;
       --ease-liquid: cubic-bezier(.22,1.15,.36,1);
     }
 
@@ -113,28 +113,31 @@ const GlobalStyle = () => (
     .pill:active{transform:scale(.97);box-shadow:var(--sh-press)}
     .pill.on{background:var(--surfH);color:var(--accent);border-color:var(--brdS);box-shadow:var(--sh-in)}
 
-    /* ── BUTTONS ── */
-    .btn{min-height:44px;height:44px;padding:0 22px;border-radius:var(--r-md);font-size:14px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:transform .18s var(--ease-liquid),box-shadow .2s,background .18s;border:1px solid var(--brd);box-shadow:0 2px 8px -2px rgba(2,8,23,.16)}
-    .btn:active:not(:disabled){transform:translateY(1px) scale(.985);box-shadow:var(--sh-press)}
-    .btn:disabled{opacity:.6;cursor:not-allowed}
-    .btn-pri{background:#3B82F6;color:#fff;border-color:transparent;box-shadow:0 4px 14px -4px rgba(37,99,235,.45)}
-    .btn-pri:hover:not(:disabled){background:#2563EB;transform:translateY(-1px);box-shadow:0 6px 18px -4px rgba(37,99,235,.55)}
-    .btn-gold{background:linear-gradient(135deg,#3B82F6,#2563EB);color:#fff;border:none;box-shadow:0 4px 14px -4px rgba(37,99,235,.45)}
-    .btn-gold:hover:not(:disabled){box-shadow:0 6px 18px -4px rgba(37,99,235,.55);transform:translateY(-1px)}
-    .btn-navy{background:#000B18;color:#fff;border-color:transparent;box-shadow:0 4px 14px -4px rgba(2,8,23,.45)}
-    .btn-navy:hover:not(:disabled){background:#03264A;transform:translateY(-1px);box-shadow:0 6px 18px -4px rgba(2,8,23,.55)}
-    .btn-out{background:var(--surf);color:var(--txt);border:1px solid var(--brdS);box-shadow:0 2px 6px -2px rgba(2,8,23,.12)}
+    /* ── BUTTONS (clean modern flat in light mode, sleek elevated in dark mode) ── */
+    .btn{min-height:44px;height:44px;padding:0 22px;border-radius:var(--r-md);font-size:14px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:transform .16s ease,box-shadow .18s ease,background .16s ease,border-color .16s ease;border:1px solid var(--brdS);box-shadow:none}
+    .btn:active:not(:disabled){transform:scale(.98)}
+    .btn:disabled{opacity:.55;cursor:not-allowed}
+    .btn-pri{background:#2563EB;color:#fff;border-color:transparent}
+    .btn-pri:hover:not(:disabled){background:#1D4ED8;transform:translateY(-1px)}
+    .btn-gold{background:#2563EB;color:#fff;border:none}
+    .btn-gold:hover:not(:disabled){background:#1D4ED8;transform:translateY(-1px)}
+    .btn-navy{background:#111827;color:#fff;border-color:transparent}
+    .btn-navy:hover:not(:disabled){background:#1F2937;transform:translateY(-1px)}
+    .dark .btn-navy{background:#F3F4F6;color:#0A0A0D}
+    .dark .btn-navy:hover:not(:disabled){background:#FFFFFF}
+    .btn-out{background:var(--surf);color:var(--txt);border:1px solid var(--brdS)}
     .btn-out:hover{background:var(--surfH)}
     .btn-ghost{background:transparent;color:var(--mut);box-shadow:none;border-color:transparent}
     .btn-ghost:hover{color:var(--txt);background:var(--surfH)}
 
-    /* ── INPUTS ── */
-    .inp{width:100%;height:48px;padding:0 16px;border-radius:var(--r-md);border:1px solid var(--brdS);background:var(--surfH);color:var(--txt);font-size:14px;font-family:inherit;transition:all .18s;box-shadow:var(--sh-in)}
-    textarea.inp{padding:12px 16px;height:auto;line-height:1.55}
+    /* ── INPUTS (clean crisp modern inputs, no skeuomorphic inner shadows in light mode) ── */
+    .inp{width:100%;height:46px;padding:0 14px;border-radius:var(--r-sm);border:1px solid var(--brdS);background:var(--surf);color:var(--txt);font-size:14px;font-family:inherit;transition:border-color .16s,box-shadow .16s,background .16s;box-shadow:none}
+    .dark .inp{background:var(--surfH)}
+    textarea.inp{padding:12px 14px;height:auto;line-height:1.55}
     .inp.err{border-color:#EF4444}
     .field-err{color:#DC2626;font-size:12px;font-weight:600;margin-top:5px}
     .dark .field-err{color:#F87171}
-    .inp:focus{background:var(--surfH);border-color:var(--accent);box-shadow:var(--sh-in),0 0 0 4px rgba(59,130,246,.22);outline:none}
+    .inp:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.18);outline:none}
     .inp::placeholder{color:var(--faint)}
     textarea.inp{height:auto;min-height:100px;padding:12px 14px;resize:vertical;line-height:1.5}
     select.inp{appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}

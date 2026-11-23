@@ -99,7 +99,7 @@ function SearchDropdown({ query, onNavigate, onPickUser, onClose }) {
               className="sch-row"
               onClick={() => {
                 if (onNavigate) onNavigate(q);
-                else navigate(`/q/${q.id}`);
+                else navigate(`/q/${q.publicId || q.id}`);
                 onClose();
               }}
             >

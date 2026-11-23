@@ -35,3 +35,11 @@ export async function submitApplication({
 export async function checkApplicationStatus(email) {
   return api.get(`/applications/status/?email=${encodeURIComponent(email.trim())}`);
 }
+
+export async function cancelSugStatus() {
+  return api.post("/applications/cancel-sug/", {}, { auth: "required" });
+}
+
+export async function cancelPendingSugApplication() {
+  return api.post("/applications/cancel-pending/", {}, { auth: "required" });
+}

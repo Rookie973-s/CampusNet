@@ -16,6 +16,7 @@ import {
 } from '../api/users';
 import { listCommunities } from '../api/communities';
 import { listDocuments, getMyPermissions, formatBytes } from '../api/library';
+import { initiateVerificationPayment, verifyPaystackPayment } from '../api/ads';
 import { listDepartments } from '../api/departments';
 import { useI18n, LANGUAGES } from '../i18n';
 
@@ -51,6 +52,9 @@ function ProfilePage({ user, toast, onUserUpdate, onLogin, onLogout }) {
   const [verifyCode, setVerifyCode] = useState("");
   const [emailBusy, setEmailBusy] = useState(false);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [activeBadge, setActiveBadge] = useState(null);
+  const [verPay, setVerPay] = useState(null);
+  const [verPayBusy, setVerPayBusy] = useState(false);
 
   // Followers / Following modal
   const [socialModal, setSocialModal] = useState(null); // null | "followers" | "following"
@@ -324,30 +328,71 @@ function ProfilePage({ user, toast, onUserUpdate, onLogin, onLogout }) {
               {user.isVerifiedStudent && <VerifiedBadge size={20} showLabel />}
             </h1>
             <p>{subtitle || t("profile.helloSub")}</p>
-            <div className="pf-badges">
-              {user.matric && <span className="chip" style={{ cursor: "default" }}>{user.matric}</span>}
-              {user.isVerifiedStaff && <span className="chip" style={{ cursor: "default" }}><Ic n="shield" s={12} /> Verified SUG / Staff</span>}
-              {perm.can_upload && <span className="chip" style={{ cursor: "default" }}><Ic n="file" s={12} />{t("profile.classRep")}</span>}
-              {user.emailVerified ? (
-                <span className="chip" style={{ cursor: "default", color: "#059669" }}>
-                  <Ic n="check" s={12} /> Email Verified
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  className="chip"
-                  style={{ color: "#D97706", borderColor: "rgba(217,119,6,.4)", cursor: "pointer" }}
-                  onClick={() => setEmailModalOpen(true)}
-                >
-                  <Ic n="mail" s={12} /> Email Unverified · Verify Now
-                </button>
-              )}
-              {user.avatarUrl && (
-                <button type="button" className="chip" style={{ color: "#DC2626" }} onClick={handleRemoveAvatar} disabled={avatarBusy}>
-                  Remove Photo
-                </button>
-              )}
-            </div>
+            {/* Compact horizontal icon-only badges: tap any icon to reveal full info */}
+            {(() => {
+              const items = [
+                user.matric && { id: "matric", ic: "hash", color: "var(--accent)", title: "Matric Number", detail: user.matric },
+                user.isVerifiedStaff && { id: "sug", ic: "shield", color: "#3B82F6", title: "Verified SUG / Staff", detail: "Official verified SUG representative on CampusNetwork." },
+                perm.can_upload && { id: "rep", ic: "file", color: "#8B5CF6", title: t("profile.classRep"), detail: "Authorized to upload course PDFs to the Library." },
+                user.emailVerified
+                  ? { id: "email", ic: "check", color: "#10B981", title: "Email Verified", detail: user.email }
+                  : { id: "email", ic: "mail", color: "#F59E0B", title: "Email Unverified", detail: `${user.email} — Tap Verify Now to confirm your email.`, action: () => setEmailModalOpen(true), actionLabel: "Verify Now" },
+                user.avatarUrl && { id: "photo", ic: "trash", color: "#EF4444", title: "Remove Profile Photo", detail: "Switch back to your initials avatar.", action: handleRemoveAvatar, actionLabel: "Remove Photo" },
+              ].filter(Boolean);
+              const selectedBadge = items.find((b) => b.id === activeBadge) || null;
+              return (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    {items.map((b) => {
+                      const on = activeBadge === b.id;
+                      return (
+                        <button
+                          key={b.id}
+                          type="button"
+                          onClick={() => setActiveBadge(on ? null : b.id)}
+                          aria-label={b.title}
+                          title={b.title}
+                          style={{
+                            width: 38, height: 38, borderRadius: "50%",
+                            display: "inline-flex", alignItems: "center", justifyContent: "center",
+                            background: on ? b.color : "var(--surfH)",
+                            color: on ? "#fff" : b.color,
+                            border: `1.5px solid ${on ? b.color : "var(--brdS)"}`,
+                            transition: "all .15s ease",
+                          }}
+                        >
+                          <Ic n={b.ic} s={16} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedBadge && (
+                    <div className="fu" style={{
+                      marginTop: 10, padding: "10px 14px", borderRadius: 12,
+                      background: "var(--surfH)", border: "1px solid var(--brdS)",
+                      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap",
+                      maxWidth: 420,
+                    }}>
+                      <div style={{ fontSize: 13 }}>
+                        <strong style={{ display: "block", color: "var(--txt)" }}>{selectedBadge.title}</strong>
+                        <span style={{ color: "var(--mut)" }}>{selectedBadge.detail}</span>
+                      </div>
+                      {selectedBadge.action && (
+                        <button
+                          type="button"
+                          className="btn btn-pri"
+                          style={{ height: 32, minHeight: 32, padding: "0 12px", fontSize: 12 }}
+                          onClick={() => { setActiveBadge(null); selectedBadge.action(); }}
+                          disabled={avatarBusy}
+                        >
+                          {selectedBadge.actionLabel}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       </section>
@@ -423,7 +468,7 @@ function ProfilePage({ user, toast, onUserUpdate, onLogin, onLogout }) {
                     {tab === "questions" && q.promoted && <span className="badge-promo" style={{ alignSelf: "flex-start" }}>{t("feed.promoted")}</span>}
                   </div>
                   <div className="pf-row-actions">
-                    <button type="button" className="btn btn-navy" style={{ height: 40, padding: "0 16px" }} onClick={() => navigate(`/q/${q.id}`)}>{t("library.view")}</button>
+                    <button type="button" className="btn btn-navy" style={{ height: 40, padding: "0 16px" }} onClick={() => navigate(`/q/${q.publicId || q.id}`)}>{t("library.view")}</button>
                     {tab === "questions" && q.canDelete && (
                       <button type="button" className="btn btn-out" style={{ height: 40, width: 44, padding: 0 }} onClick={() => setToDelete(q)} aria-label={t("feed.deleteAria", { title: q.title })}><Ic n="trash" s={15} c="#DC2626" /></button>
                     )}
@@ -518,6 +563,66 @@ function ProfilePage({ user, toast, onUserUpdate, onLogin, onLogout }) {
                         <input type="checkbox" checked={verForm.consent} onChange={(e) => setVerForm((p) => ({ ...p, consent: e.target.checked }))} style={{ marginTop: 3 }} />
                         <span>I confirm my student details are accurate and consent to CampusNetwork reviewing my verification application under its Privacy Policy.</span>
                       </label>
+                      <div style={{ padding: 14, borderRadius: 14, background: "var(--surfH)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 10 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <div>
+                            <strong style={{ fontSize: 14 }}>Verification Fee: ₦1,500 (Paystack Bank Transfer)</strong>
+                            <p style={{ fontSize: 12.5, color: "var(--mut)" }}>Pay via dedicated virtual bank account or Paystack checkout to unlock verified perks (multiple images, videos, 1,200-word posts, ad-free toggle).</p>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-pri"
+                            style={{ height: 38, minHeight: 38, padding: "0 16px", fontSize: 13 }}
+                            disabled={verPayBusy}
+                            onClick={async () => {
+                              setVerPayBusy(true);
+                              try {
+                                const res = await initiateVerificationPayment();
+                                setVerPay(res);
+                                toast(res.message, res.enabled ? "success" : "info");
+                              } catch (err) {
+                                toast(err.message || "Could not start Paystack payment.", "error");
+                              } finally { setVerPayBusy(false); }
+                            }}
+                          >
+                            {verPayBusy ? "Generating account…" : "Pay ₦1,500 with Paystack"}
+                          </button>
+                        </div>
+                        {verPay && (
+                          <div style={{ padding: 12, borderRadius: 12, background: "var(--surf)", border: "1px solid var(--brdS)", fontSize: 13, display: "flex", flexDirection: "column", gap: 6 }}>
+                            <p style={{ color: "var(--mut)" }}>{verPay.message}</p>
+                            {verPay.account_number && (
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, padding: "8px 0" }}>
+                                <div><span style={{ color: "var(--faint)", fontSize: 11 }}>BANK</span><strong style={{ display: "block" }}>{verPay.bank_name}</strong></div>
+                                <div><span style={{ color: "var(--faint)", fontSize: 11 }}>ACCOUNT NUMBER</span><strong style={{ display: "block", fontSize: 16 }}>{verPay.account_number}</strong></div>
+                                <div><span style={{ color: "var(--faint)", fontSize: 11 }}>ACCOUNT NAME</span><strong style={{ display: "block" }}>{verPay.account_name}</strong></div>
+                              </div>
+                            )}
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              {verPay.checkout_url && (
+                                <a href={verPay.checkout_url} target="_blank" rel="noopener noreferrer" className="btn btn-navy" style={{ height: 36, minHeight: 36, padding: "0 14px", fontSize: 12.5 }}>
+                                  Open Paystack Checkout
+                                </a>
+                              )}
+                              {verPay.reference && (
+                                <button
+                                  type="button"
+                                  className="btn btn-out"
+                                  style={{ height: 36, minHeight: 36, padding: "0 14px", fontSize: 12.5 }}
+                                  onClick={async () => {
+                                    try {
+                                      const v = await verifyPaystackPayment(verPay.reference);
+                                      toast(v.verified ? "Payment confirmed!" : (v.detail || "Transfer not confirmed yet — try again in a few seconds."), v.verified ? "success" : "info");
+                                    } catch (err) { toast(err.message || "Could not verify payment.", "error"); }
+                                  }}
+                                >
+                                  I&apos;ve Sent the Transfer — Verify
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                       <button type="submit" className="btn btn-navy" style={{ alignSelf: "flex-start" }} disabled={verBusy}>
                         {verBusy ? "Submitting…" : "Apply for Student Verification"}
                       </button>
