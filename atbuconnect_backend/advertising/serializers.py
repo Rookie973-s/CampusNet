@@ -145,16 +145,20 @@ class CampaignSerializer(serializers.ModelSerializer):
 
 
 class ServedAdSerializer(serializers.ModelSerializer):
-    """Public ad shape served to feed/comments — never leaks advertiser budget or private data."""
+    """Public ad shape served to feed/library/comments — never leaks advertiser budget or private data."""
     image_url = serializers.SerializerMethodField()
+    advertiser_name = serializers.CharField(source="advertiser.display_name", read_only=True)
 
     class Meta:
         model = Campaign
-        fields = ["id", "headline", "description", "image_url", "destination_url", "cta_text", "placements"]
+        fields = ["id", "headline", "description", "image_url", "destination_url", "cta_text", "placements", "advertiser_name"]
 
     def get_image_url(self, obj):
         if not obj.image:
             return None
         req = self.context.get("request")
         url = obj.image.url
-        return req.build_absolute_uri(url) if req else url
+        abs_url = req.build_absolute_uri(url) if req else url
+        if abs_url.startswith("http://") and "onrender.com" in abs_url:
+            abs_url = "https://" + abs_url[len("http://"):]
+        return abs_url
