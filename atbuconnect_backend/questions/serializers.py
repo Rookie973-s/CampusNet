@@ -8,7 +8,7 @@ from accounts.serializers import UserPublicSerializer
 from config.security import sanitize_rich_html, strip_html_to_text, validate_and_reencode_image
 
 from . import media_validation as mv
-from .models import Answer, AnswerVote, Question, QuestionMedia, Tag
+from .models import Answer, AnswerVote, PollOption, Question, QuestionMedia, Tag
 
 
 def human_time(dt):
@@ -141,6 +141,9 @@ class QuestionListSerializer(serializers.ModelSerializer):
     can_delete = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
     delete_deadline = serializers.SerializerMethodField()
+    poll_options = serializers.SerializerMethodField()
+    poll_total_votes = serializers.SerializerMethodField()
+    my_poll_option = serializers.SerializerMethodField()
 
     class Meta:
         model = Question
@@ -148,9 +151,14 @@ class QuestionListSerializer(serializers.ModelSerializer):
             "id", "public_id", "user", "dept", "title", "body", "body_html", "tags", "time",
             "votes", "likes", "ans", "views", "answered",
             "voted", "liked", "saved", "media", "promoted",
-            "can_delete", "can_edit", "delete_deadline", "created_at", "edited_at",
+            "can_delete", "can_edit", "delete_deadline",
+            "poll_options", "poll_total_votes", "my_poll_option",
+            "created_at", "edited_at",
         ]
-        read_only_fields = ["id", "public_id", "votes", "likes", "ans", "views", "answered", "created_at", "edited_at"]
+        read_only_fields = [
+            "id", "public_id", "votes", "likes", "ans", "views", "answered",
+            "poll_options", "poll_total_votes", "my_poll_option", "created_at", "edited_at",
+        ]
 
     def get_can_delete(self, obj):
         from .permissions import can_delete_question
@@ -192,6 +200,41 @@ class QuestionListSerializer(serializers.ModelSerializer):
     def get_saved(self, obj):
         user = self._user()
         return bool(user and obj.bookmarks.filter(user=user).exists())
+
+    def get_poll_options(self, obj):
+        opts = list(obj.poll_options.all())
+        if not opts:
+            return []
+        total = obj.poll_votes.count()
+        user = self._user()
+        my_opt_id = None
+        if user:
+            v = obj.poll_votes.filter(user=user).first()
+            my_opt_id = v.option_id if v else None
+        out = []
+        for o in opts:
+            c = o.votes.count()
+            pct = round((c / total) * 100) if total else 0
+            out.append({
+                "id": o.id,
+                "text": o.text,
+                "votes": c,
+                "percent": pct,
+                "voted": o.id == my_opt_id,
+            })
+        return out
+
+    def get_poll_total_votes(self, obj):
+        if not obj.poll_options.exists():
+            return 0
+        return obj.poll_votes.count()
+
+    def get_my_poll_option(self, obj):
+        user = self._user()
+        if not user or not obj.poll_options.exists():
+            return None
+        v = obj.poll_votes.filter(user=user).first()
+        return v.option_id if v else None
 
 
 class QuestionDetailSerializer(QuestionListSerializer):
@@ -270,6 +313,21 @@ class QuestionCreateSerializer(serializers.ModelSerializer):
             field = "video" if videos else "images"
             raise serializers.ValidationError({field: e.messages[0]})
         self._media = validated
+
+        # Optional poll options (JSON array or repeated form keys)
+        raw_poll = request.data.getlist("poll_options") if hasattr(request.data, "getlist") else request.data.get("poll_options")
+        poll_items = []
+        if isinstance(raw_poll, list):
+            for entry in raw_poll:
+                s = str(entry or "").strip()[:140]
+                if s:
+                    poll_items.append(s)
+        if poll_items:
+            if len(poll_items) < 2:
+                raise serializers.ValidationError({"poll_options": "A poll requires at least 2 options."})
+            if len(poll_items) > 6:
+                raise serializers.ValidationError({"poll_options": "A poll can have at most 6 options."})
+        self._poll_items = poll_items
         return attrs
 
     @transaction.atomic
@@ -282,6 +340,8 @@ class QuestionCreateSerializer(serializers.ModelSerializer):
                 question=question, kind=kind, file=f, width=w, height=h,
                 duration=d, size_bytes=f.size, position=pos,
             )
+        for pos, text in enumerate(getattr(self, "_poll_items", [])):
+            PollOption.objects.create(question=question, text=text, position=pos)
         return question
 
 

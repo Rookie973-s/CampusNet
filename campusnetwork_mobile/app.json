@@ -10,16 +10,29 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "ng.edu.campusnetwork.app"
+      "bundleIdentifier": "ng.edu.campusnetwork.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "CampusNetwork uses the camera for live student liveness verification and media uploads.",
+        "NSPhotoLibraryUsageDescription": "CampusNetwork accesses your photos to upload avatars, community covers, and verification documents."
+      }
     },
     "android": {
       "package": "ng.edu.campusnetwork.app",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#0A0A0D"
-      }
+      },
+      "permissions": [
+        "CAMERA",
+        "POST_NOTIFICATIONS"
+      ]
     },
     "plugins": [
-      "expo-asset"
+      "expo-asset",
+      "expo-camera",
+      "expo-image-picker",
+      "expo-document-picker",
+      "expo-notifications"
     ]
   }
 }

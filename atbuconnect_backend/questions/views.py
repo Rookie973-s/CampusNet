@@ -21,10 +21,11 @@ from config.security import (
 from notifications.models import Notification
 from notifications.services import notify
 
+from accounts.serializers import UserPublicSerializer
 from .models import (
-    Answer, AnswerLike, AnswerReaction, AnswerVote, ContentReport, Mention,
-    PostView, Question, QuestionBookmark, QuestionEditHistory, QuestionLike,
-    QuestionVote,
+    Answer, AnswerLike, AnswerReaction, AnswerVote, ContentReport, HiddenQuestion,
+    Mention, PollOption, PollVote, PostView, Question, QuestionBookmark,
+    QuestionEditHistory, QuestionLike, QuestionVote,
 )
 from .permissions import can_delete_question, can_edit_question, is_moderator
 from .serializers import (
@@ -119,7 +120,7 @@ class QuestionViewSet(viewsets.ModelViewSet):
     /api/questions/{id}/report/      POST report inappropriate post
     """
 
-    queryset = Question.objects.select_related("author", "author__department", "department").prefetch_related("tags", "media")
+    queryset = Question.objects.select_related("author", "author__department", "department").prefetch_related("tags", "media", "poll_options")
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
@@ -203,6 +204,9 @@ class QuestionViewSet(viewsets.ModelViewSet):
             n_down=Count("votes_set", filter=Q(votes_set__direction="down"), distinct=True),
             n_ans=Count("answers", distinct=True),
         )
+        if self.action == "list" and self.request.user.is_authenticated:
+            hidden_ids = HiddenQuestion.objects.filter(user=self.request.user).values_list("question_id", flat=True)
+            qs = qs.exclude(pk__in=hidden_ids)
         p = self.request.query_params
         topic = p.get("topic")
         if topic and topic != "All":
@@ -513,6 +517,51 @@ class QuestionViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Please provide a brief reason."}, status=400)
         ContentReport.objects.create(reporter=request.user, question=question, reason=reason)
         return Response({"detail": "Report submitted."}, status=201)
+
+    @action(detail=True, methods=["post"])
+    def hide(self, request, pk=None):
+        """'See less of this' — hides this post from the authenticated user's feed."""
+        question = self.get_object()
+        HiddenQuestion.objects.get_or_create(user=request.user, question=question)
+        return Response({"hidden": True, "detail": "We'll show you less like this."})
+
+    @action(detail=True, methods=["get"])
+    def likers(self, request, pk=None):
+        """Post analytics & 'Liked By' user list — accessible to post author or moderators."""
+        question = self.get_object()
+        if not request.user.is_authenticated:
+            return Response({"detail": "Authentication required."}, status=401)
+        if question.author_id != request.user.pk and not is_moderator(request.user):
+            return Response({"detail": "Only the post author can inspect post analytics."}, status=403)
+        like_rows = question.likes_set.select_related("user", "user__department").order_by("-created_at")[:100]
+        users = [row.user for row in like_rows]
+        return Response({
+            "views": question.views or 0,
+            "likes": question.likes_set.count(),
+            "upvotes": question.votes_set.filter(direction=QuestionVote.UP).count(),
+            "downvotes": question.votes_set.filter(direction=QuestionVote.DOWN).count(),
+            "comments": question.answers.count(),
+            "bookmarks": question.bookmarks.count(),
+            "likers": UserPublicSerializer(users, many=True, context={"request": request}).data,
+        })
+
+    @action(detail=True, methods=["post"], url_path="vote-poll")
+    def vote_poll(self, request, pk=None):
+        """Cast or change a vote on a poll option attached to this question."""
+        question = self.get_object()
+        option_id = request.data.get("option_id")
+        option = get_object_or_404(PollOption, pk=option_id, question=question)
+        PollVote.objects.update_or_create(
+            question=question,
+            user=request.user,
+            defaults={"option": option},
+        )
+        ser = QuestionListSerializer(question, context={"request": request}).data
+        return Response({
+            "poll_options": ser["poll_options"],
+            "poll_total_votes": ser["poll_total_votes"],
+            "my_poll_option": ser["my_poll_option"],
+        })
 
 
 class AnswerViewSet(viewsets.ModelViewSet):

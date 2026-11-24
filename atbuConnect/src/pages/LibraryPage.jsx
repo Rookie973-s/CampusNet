@@ -5,6 +5,8 @@ import { Skel } from '../components/ui/shared';
 import FolderCard from '../components/library/FolderCard';
 import PdfViewer from '../components/library/PdfViewer';
 import UploadPanel from '../components/library/UploadPanel';
+import AdCard from '../components/ads/AdCard';
+import { serveAds } from '../api/ads';
 import {
   getCatalog, getMyPermissions, getFolders, listDocuments, getCourses, deleteDocument,
   fetchDocumentBlob, formatBytes,
@@ -41,7 +43,12 @@ function LibraryPage({ user, onLogin, toast }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [viewing, setViewing] = useState(null);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [libAds, setLibAds] = useState([]);
   const reqId = useRef(0);
+
+  useEffect(() => {
+    serveAds("library").then((a) => setLibAds(Array.isArray(a) ? a : [])).catch(() => {});
+  }, [user]);
 
   const setFilter = useCallback((patch) => {
     if ("course" in patch) {
@@ -240,9 +247,12 @@ function LibraryPage({ user, onLogin, toast }) {
       )}
 
       {state === "ok" && items.length > 0 && !courseId && (
-        <ul className="folder-grid" style={{ listStyle: "none" }}>
-          {items.map((f) => <li key={f.id}><FolderCard f={f} onOpen={(x) => setFilter({ course: x.id })} /></li>)}
-        </ul>
+        <>
+          {libAds[0] && <div style={{ marginBottom: 16 }}><AdCard ad={libAds[0]} placement="library" /></div>}
+          <ul className="folder-grid" style={{ listStyle: "none" }}>
+            {items.map((f) => <li key={f.id}><FolderCard f={f} onOpen={(x) => setFilter({ course: x.id })} /></li>)}
+          </ul>
+        </>
       )}
 
       {state === "ok" && items.length > 0 && courseId && (

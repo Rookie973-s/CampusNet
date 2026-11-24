@@ -41,3 +41,18 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"{self.user}: {self.text[:40]}"
+
+
+class PushToken(models.Model):
+    """Stores Expo / FCM native mobile push tokens per user device."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="push_tokens")
+    token = models.CharField(max_length=255, unique=True)
+    platform = models.CharField(max_length=20, blank=True, default="android")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return f"{self.user} ({self.platform}): {self.token[:24]}"

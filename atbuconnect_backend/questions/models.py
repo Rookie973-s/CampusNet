@@ -253,6 +253,41 @@ class ContentReport(models.Model):
         ordering = ["-created_at"]
 
 
+class HiddenQuestion(models.Model):
+    """Tracks posts a user chose 'See less of this' on so they stay hidden from their feed."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="hidden_questions")
+    question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name="hidden_by")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "question")
+        ordering = ["-created_at"]
+
+
+class PollOption(models.Model):
+    """Optional poll choice attached to a Question post."""
+    question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name="poll_options")
+    text = models.CharField(max_length=140)
+    position = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["position", "id"]
+
+    def __str__(self):
+        return f"PollOption({self.question_id}): {self.text[:30]}"
+
+
+class PollVote(models.Model):
+    """One vote per user per poll question."""
+    question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name="poll_votes")
+    option = models.ForeignKey(PollOption, on_delete=models.CASCADE, related_name="votes")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="poll_votes")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("question", "user")
+
+
 def question_media_path(instance, filename):
     ext = {"image": ".img", "video": ".mp4"}.get(instance.kind, ".bin")
     return f"questions/{timezone.now():%Y/%m}/{uuid.uuid4().hex}{ext}"

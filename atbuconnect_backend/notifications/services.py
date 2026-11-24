@@ -1,11 +1,52 @@
-"""Centralized notification creation with deduplication so events are recorded reliably
-on the backend without spamming duplicate rows."""
+"""Centralized notification creation with deduplication and async Expo Push delivery."""
 
+import json
+import logging
+import threading
+import urllib.request
 from datetime import timedelta
 
+from django.conf import settings
 from django.utils import timezone
 
-from .models import Notification
+from .models import Notification, PushToken
+
+logger = logging.getLogger(__name__)
+EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
+
+
+def _dispatch_expo_push(tokens, title, body, data):
+    """Fire-and-forget Expo Push API call in a daemon thread so requests never block."""
+    if not tokens:
+        return
+    messages = [
+        {
+            "to": tok,
+            "sound": "default",
+            "title": title,
+            "body": body,
+            "data": data,
+            "priority": "high",
+        }
+        for tok in tokens
+        if tok.startswith("ExponentPushToken[") or tok.startswith("ExpoPushToken[")
+    ]
+    if not messages:
+        return
+    try:
+        req = urllib.request.Request(
+            EXPO_PUSH_URL,
+            data=json.dumps(messages).encode("utf-8"),
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=6):
+            pass
+    except Exception as exc:
+        logger.debug("Expo push dispatch skipped/failed: %s", exc)
 
 
 def notify(
@@ -46,7 +87,7 @@ def notify(
         if dup_qs.exists():
             return None
 
-    return Notification.objects.create(
+    notif = Notification.objects.create(
         user=user,
         actor=actor,
         type=notif_type,
@@ -55,3 +96,23 @@ def notify(
         question=question,
         answer=answer,
     )
+
+    if not getattr(settings, "TESTING", False):
+        try:
+            tokens = list(PushToken.objects.filter(user=user).values_list("token", flat=True)[:5])
+            if tokens:
+                payload = {
+                    "notification_id": notif.id,
+                    "type": notif_type,
+                    "link": link[:255],
+                    "question_id": question.pk if question else None,
+                }
+                threading.Thread(
+                    target=_dispatch_expo_push,
+                    args=(tokens, "CampusNetwork", clean_text, payload),
+                    daemon=True,
+                ).start()
+        except Exception:
+            pass
+
+    return notif

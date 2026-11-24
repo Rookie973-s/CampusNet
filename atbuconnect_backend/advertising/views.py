@@ -315,14 +315,19 @@ class CampaignViewSet(viewsets.ModelViewSet):
         ).order_by("-created_at")
 
         eligible = []
+        fallback = []
         for c in qs:
             if not c.is_eligible_to_serve(today):
                 continue
-            if c.placements and placement not in [str(p).lower() for p in c.placements]:
-                continue
-            eligible.append(c)
+            pl = [str(p).lower() for p in (c.placements or [])]
+            if not pl or placement in pl or "all" in pl:
+                eligible.append(c)
+            elif placement == "library" and "feed" in pl:
+                fallback.append(c)
             if len(eligible) >= 5:
                 break
+        if not eligible and fallback:
+            eligible = fallback[:3]
 
         return Response(ServedAdSerializer(eligible, many=True, context={"request": request}).data)
 

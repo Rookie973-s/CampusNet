@@ -64,6 +64,9 @@ export function flattenQuestion(q) {
     canDelete: !!q.can_delete,
     canEdit: !!q.can_edit,
     deleteDeadline: q.delete_deadline || null,
+    pollOptions: q.poll_options || [],
+    pollTotalVotes: q.poll_total_votes || 0,
+    myPollOption: q.my_poll_option ?? null,
     createdAt: q.created_at || null,
     editedAt: q.edited_at || null,
   };
@@ -137,6 +140,18 @@ export async function likeQuestion(id) {
 
 export async function bookmarkQuestion(id) {
   return api.post(`/questions/${id}/bookmark/`, {}, { auth: "required" });
+}
+
+export async function hideQuestion(id) {
+  return api.post(`/questions/${id}/hide/`, {}, { auth: "required" });
+}
+
+export async function getQuestionLikers(id) {
+  return api.get(`/questions/${id}/likers/`, { auth: "required" });
+}
+
+export async function votePoll(id, optionId) {
+  return api.post(`/questions/${id}/vote-poll/`, { option_id: optionId }, { auth: "required" });
 }
 
 export async function reportQuestion(id, reason) {
