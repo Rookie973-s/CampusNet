@@ -12,6 +12,7 @@ import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/morphism_widgets.dart';
+import '../../core/widgets/skeleton_widgets.dart';
 import '../auth/auth_provider.dart';
 import '../auth/landing_screen.dart';
 
@@ -641,7 +642,7 @@ class _ActivityBarChartCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           if (loading && series.isEmpty)
-            const SizedBox(height: 110, child: Center(child: CircularProgressIndicator()))
+            const ActivityChartSkeleton()
           else if (series.isEmpty)
             SizedBox(
               height: 90,

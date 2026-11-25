@@ -11,6 +11,7 @@ import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/morphism_widgets.dart';
+import '../../core/widgets/skeleton_widgets.dart';
 import '../auth/auth_provider.dart';
 import '../auth/landing_screen.dart';
 
@@ -336,7 +337,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ],
           const SizedBox(height: 16),
           if (_loading)
-            const Center(child: Padding(padding: EdgeInsets.all(36), child: CircularProgressIndicator()))
+            const LibrarySkeletonGrid()
           else if (_error != null)
             MorphismCard(
               child: Column(
@@ -437,7 +438,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         ),
         const SizedBox(height: 14),
         if (_loading)
-          const Center(child: Padding(padding: EdgeInsets.all(28), child: CircularProgressIndicator()))
+          const FeedSkeletonList(count: 3)
         else if (_error != null)
           MorphismCard(child: Text(_error!, style: TextStyle(color: cn.danger)))
         else if (_docs.isEmpty)

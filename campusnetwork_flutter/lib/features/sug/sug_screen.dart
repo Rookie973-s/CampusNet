@@ -10,6 +10,7 @@ import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/morphism_widgets.dart';
+import '../../core/widgets/skeleton_widgets.dart';
 import '../auth/auth_provider.dart';
 import '../auth/landing_screen.dart';
 
@@ -39,6 +40,7 @@ class _SugScreenState extends ConsumerState<SugScreen> {
         }
       });
     _load();
+    Future.microtask(() => ref.read(departmentsProvider.notifier).ensureLoaded());
   }
 
   @override
@@ -134,6 +136,7 @@ class _SugScreenState extends ConsumerState<SugScreen> {
                           );
                         }
                         _load();
+    Future.microtask(() => ref.read(departmentsProvider.notifier).ensureLoaded());
                       } catch (e) {
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(parseApiError(e))));
@@ -155,7 +158,11 @@ class _SugScreenState extends ConsumerState<SugScreen> {
   Widget build(BuildContext context) {
     final cn = context.cn;
     final user = ref.watch(authProvider.select((s) => s.user));
-    final depts = ref.watch(departmentsProvider).valueOrNull ?? const <DepartmentItem>[];
+    final deptsAsync = ref.watch(departmentsProvider);
+    final depts = deptsAsync.valueOrNull ?? const <DepartmentItem>[];
+    if (deptsAsync.hasError) {
+      Future.microtask(() => ref.read(departmentsProvider.notifier).ensureLoaded());
+    }
 
     if (user == null) {
       return Center(
@@ -252,7 +259,7 @@ class _SugScreenState extends ConsumerState<SugScreen> {
           ),
           const SizedBox(height: 18),
           if (_loading)
-            const Center(child: Padding(padding: EdgeInsets.all(42), child: CircularProgressIndicator()))
+            const SugSkeletonView()
           else if (filtered.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),

@@ -12,6 +12,7 @@ import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/morphism_widgets.dart';
+import '../../core/widgets/skeleton_widgets.dart';
 import '../auth/auth_provider.dart';
 import '../auth/landing_screen.dart';
 
@@ -64,6 +65,7 @@ class FeedNotifier extends StateNotifier<FeedState> {
 
   final ApiClient _api;
   Timer? _syncTimer;
+  int _latestKnownId = 0;
 
   @override
   void dispose() {
@@ -72,17 +74,21 @@ class FeedNotifier extends StateNotifier<FeedState> {
   }
 
   Future<void> _checkForNewPosts() async {
-    if (state.loading || state.items.isEmpty) return;
+    if (state.loading || _latestKnownId <= 0) return;
     try {
-      final res = await _api.dio.get('/questions/', queryParameters: {'ordering': 'newest'});
+      final params = <String, dynamic>{'ordering': 'newest'};
+      if (state.topic != 'All') params['topic'] = state.topic;
+      final res = await _api.dio.get('/questions/', queryParameters: params);
       final raw = res.data is List ? res.data as List : (res.data['results'] as List? ?? []);
-      final topId = state.items.first.id;
+      final existingIds = state.items.map((e) => e.id).toSet();
       int newer = 0;
       for (final m in raw.whereType<Map>()) {
         final id = (m['id'] as num?)?.toInt() ?? 0;
-        if (id > topId) newer++;
+        if (id > _latestKnownId && !existingIds.contains(id)) newer++;
       }
-      if (newer > 0 && mounted) state = state.copyWith(newPostsCount: newer);
+      if (mounted && newer != state.newPostsCount) {
+        state = state.copyWith(newPostsCount: newer);
+      }
     } catch (_) {}
   }
 
@@ -101,12 +107,20 @@ class FeedNotifier extends StateNotifier<FeedState> {
     try {
       final params = <String, dynamic>{'ordering': orderMap[nextFilter] ?? 'trending'};
       if (nextTopic != 'All') params['topic'] = nextTopic;
+      final newestParams = <String, dynamic>{'ordering': 'newest'};
+      if (nextTopic != 'All') newestParams['topic'] = nextTopic;
 
       final results = await Future.wait([
         _api.dio.get('/questions/', queryParameters: params),
         _api.dio
             .get('/ads/serve/', queryParameters: {'placement': 'feed'})
             .catchError((_) => Response(requestOptions: RequestOptions(path: ''), data: [])),
+        if (params['ordering'] != 'newest')
+          _api.dio
+              .get('/questions/', queryParameters: newestParams)
+              .catchError((_) => Response(requestOptions: RequestOptions(path: ''), data: []))
+        else
+          Future.value(Response(requestOptions: RequestOptions(path: ''), data: [])),
       ]);
 
       final qRaw = results[0].data is List ? results[0].data as List : (results[0].data['results'] as List? ?? []);
@@ -116,6 +130,20 @@ class FeedNotifier extends StateNotifier<FeedState> {
       final adRaw = results[1].data is List ? results[1].data as List : [];
       final parsedAds = adRaw.whereType<Map>().map((m) => ServedAd.fromJson(Map<String, dynamic>.from(m))).toList();
 
+      // Establish true highest known post ID across both current list & newest baseline
+      int maxId = _latestKnownId;
+      for (final q in parsed) {
+        if (q.id > maxId) maxId = q.id;
+      }
+      final newestRaw = results[2].data is List
+          ? results[2].data as List
+          : (results[2].data is Map ? (results[2].data['results'] as List? ?? []) : const []);
+      for (final m in newestRaw.whereType<Map>()) {
+        final id = (m['id'] as num?)?.toInt() ?? 0;
+        if (id > maxId) maxId = id;
+      }
+      _latestKnownId = maxId;
+
       state = state.copyWith(items: parsed, ads: parsedAds, loading: false, newPostsCount: 0);
     } catch (e) {
       state = state.copyWith(loading: false, error: parseApiError(e));
@@ -123,6 +151,7 @@ class FeedNotifier extends StateNotifier<FeedState> {
   }
 
   void prependQuestion(QuestionItem q) {
+    if (q.id > _latestKnownId) _latestKnownId = q.id;
     state = state.copyWith(items: [q, ...state.items.where((x) => x.id != q.id)], newPostsCount: 0);
   }
 
@@ -216,7 +245,11 @@ class FeedScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.cn;
     final feed = ref.watch(feedProvider);
-    final depts = ref.watch(departmentsProvider).valueOrNull ?? const <DepartmentItem>[];
+    final deptsAsync = ref.watch(departmentsProvider);
+    final depts = deptsAsync.valueOrNull ?? const <DepartmentItem>[];
+    if (deptsAsync.hasError) {
+      Future.microtask(() => ref.read(departmentsProvider.notifier).ensureLoaded());
+    }
     final user = ref.watch(authProvider.select((s) => s.user));
     final api = ref.watch(apiClientProvider);
 
@@ -283,8 +316,8 @@ class FeedScreen extends ConsumerWidget {
                       ),
                       if (feed.loading)
                         const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 46),
-                          child: Center(child: CircularProgressIndicator()),
+                          padding: EdgeInsets.only(top: 10),
+                          child: FeedSkeletonList(count: 4),
                         ),
                     ],
                   ),
@@ -353,7 +386,7 @@ class FeedScreen extends ConsumerWidget {
             right: 0,
             child: Center(
               child: LiquidTap(
-                onTap: () => ref.read(feedProvider.notifier).load(),
+                onTap: () => ref.read(feedProvider.notifier).load(filter: 'Most Recent'),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(

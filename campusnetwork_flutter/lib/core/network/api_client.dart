@@ -63,8 +63,8 @@ class ApiClient {
     dio = Dio(
       BaseOptions(
         baseUrl: kApiBase,
-        connectTimeout: const Duration(seconds: 20),
-        receiveTimeout: const Duration(seconds: 25),
+        connectTimeout: const Duration(seconds: 35),
+        receiveTimeout: const Duration(seconds: 45),
         headers: {'Accept': 'application/json'},
       ),
     );

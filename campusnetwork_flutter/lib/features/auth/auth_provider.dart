@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/models.dart';
@@ -115,12 +116,66 @@ final authProvider = StateNotifierProvider<AuthNotifier, AuthState>(
   (ref) => AuthNotifier(ref.watch(apiClientProvider)),
 );
 
-final departmentsProvider = FutureProvider<List<DepartmentItem>>((ref) async {
-  final api = ref.watch(apiClientProvider);
-  final res = await api.dio.get('/departments/');
-  final list = res.data is List ? res.data as List : (res.data['results'] as List? ?? []);
-  return list.whereType<Map>().map((e) => DepartmentItem.fromJson(Map<String, dynamic>.from(e))).toList();
-});
+/// Resilient Faculties / Departments provider:
+/// - Calls public GET /api/departments/ WITHOUT stale Authorization header so an expired
+///   token or guest launch can never cause a 401.
+/// - Retries once automatically on Render cold-start/network hiccup, and exposes
+///   `ensureLoaded()` so Feed/SUG/Library/Forms never get permanently stuck showing only "All Faculties".
+class DepartmentsNotifier extends StateNotifier<AsyncValue<List<DepartmentItem>>> {
+  DepartmentsNotifier() : super(const AsyncValue.loading()) {
+    load();
+  }
+
+  bool _loading = false;
+
+  Future<void> load({bool force = false}) async {
+    if (_loading) return;
+    if (!force && state.valueOrNull != null && state.valueOrNull!.isNotEmpty) return;
+    _loading = true;
+    try {
+      final publicDio = Dio(
+        BaseOptions(
+          baseUrl: kApiBase,
+          connectTimeout: const Duration(seconds: 35),
+          receiveTimeout: const Duration(seconds: 45),
+          headers: {'Accept': 'application/json'},
+        ),
+      );
+      Response<dynamic> res;
+      try {
+        res = await publicDio.get('/departments/');
+      } catch (_) {
+        await Future<void>.delayed(const Duration(seconds: 2));
+        res = await publicDio.get('/departments/');
+      }
+      final list = res.data is List
+          ? res.data as List
+          : (res.data is Map ? (res.data['results'] as List? ?? []) : const []);
+      final parsed = list
+          .whereType<Map>()
+          .map((e) => DepartmentItem.fromJson(Map<String, dynamic>.from(e)))
+          .where((d) => d.name.trim().isNotEmpty)
+          .toList();
+      if (mounted) state = AsyncValue.data(parsed);
+    } catch (e, st) {
+      if (mounted && (state.valueOrNull == null || state.valueOrNull!.isEmpty)) {
+        state = AsyncValue.error(e, st);
+      }
+    } finally {
+      _loading = false;
+    }
+  }
+
+  void ensureLoaded() {
+    if (state.valueOrNull == null || state.valueOrNull!.isEmpty) {
+      load(force: true);
+    }
+  }
+}
+
+final departmentsProvider = StateNotifierProvider<DepartmentsNotifier, AsyncValue<List<DepartmentItem>>>(
+  (_) => DepartmentsNotifier(),
+);
 
 /// Real-Time Notifications Controller (polls automatically every 10s without manual refresh!)
 class NotificationsNotifier extends StateNotifier<List<NotificationItem>> {

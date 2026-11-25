@@ -7,14 +7,15 @@ import '../../core/models/models.dart';
 import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/form_templates.dart';
 import '../../core/widgets/morphism_widgets.dart';
 import '../auth/auth_provider.dart';
 import '../me/liveness_camera.dart';
 
-/// SUG Access Application Flow matching SUG ACCESS FORM & WELCOME BACK references:
-/// - Intro card + "Already Applied?" email status checker
-/// - 4-step structured wizard: Personal -> Academic & Credentials -> Statement (20+ chars) -> Review
-/// - Live "Thank you, `first_name`" confirmation screen
+/// SUG Access Application Flow:
+/// 1. Atmospheric Summary Screen (SUMMARY SCREEN ref)
+/// 2. 4-Step Styled Wizard (Steps Form ref — preserving all real SUG fields!)
+/// 3. Live "Already Applied?" status checker & "Thank you" confirmation
 class ApplySugScreen extends ConsumerStatefulWidget {
   const ApplySugScreen({super.key});
 
@@ -23,8 +24,7 @@ class ApplySugScreen extends ConsumerStatefulWidget {
 }
 
 class _ApplySugScreenState extends ConsumerState<ApplySugScreen> {
-  // Stage: 'intro' | 'form' | 'thanks'
-  String _stage = 'intro';
+  String _stage = 'summary'; // 'summary' | 'form' | 'thanks'
   int _step = 0; // 0..3
 
   final _first = TextEditingController();
@@ -49,6 +49,7 @@ class _ApplySugScreenState extends ConsumerState<ApplySugScreen> {
   @override
   void initState() {
     super.initState();
+    ref.read(departmentsProvider.notifier).ensureLoaded();
     final u = ref.read(authProvider).user;
     if (u != null) {
       _first.text = u.firstName;
@@ -127,7 +128,6 @@ class _ApplySugScreenState extends ConsumerState<ApplySugScreen> {
       if (_livenessPath != null) {
         form.files.add(MapEntry('liveness_video', await MultipartFile.fromFile(_livenessPath!, filename: 'sug_liveness.mp4')));
       }
-
       await ref.read(apiClientProvider).dio.post('/applications/', data: form);
       if (mounted) setState(() => _stage = 'thanks');
     } catch (e) {
@@ -150,24 +150,22 @@ class _ApplySugScreenState extends ConsumerState<ApplySugScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Check SUG Application Status', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: cn.textPrimary)),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _statusEmail,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Application Email'),
-                ),
                 const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _busy
-                        ? null
-                        : () async {
-                            await _checkExistingStatus();
-                            setS(() {});
-                          },
-                    child: Text(_busy ? 'Checking...' : 'Check Status'),
-                  ),
+                StepCardInput(
+                  controller: _statusEmail,
+                  hint: 'Application Email',
+                  icon: Icons.mail_outline_rounded,
+                  keyboardType: TextInputType.emailAddress,
+                ),
+                const SizedBox(height: 14),
+                StepPrimaryButton(
+                  label: _busy ? 'Checking...' : 'Check Status',
+                  onTap: _busy
+                      ? null
+                      : () async {
+                          await _checkExistingStatus();
+                          setS(() {});
+                        },
                 ),
                 if (_checkedStatus != null) ...[
                   const SizedBox(height: 14),
@@ -181,7 +179,7 @@ class _ApplySugScreenState extends ConsumerState<ApplySugScreen> {
                             children: [
                               Text(
                                 'Status: ${(_checkedStatus!['status'] ?? '').toString().toUpperCase()}',
-                                style: TextStyle(fontWeight: FontWeight.w900, color: cn.accentLight),
+                                style: TextStyle(fontWeight: FontWeight.w900, color: cn.success),
                               ),
                               if (_checkedStatus!['role_title'] != null)
                                 Text('Office: ${_checkedStatus!['role_title']}', style: TextStyle(color: cn.textPrimary, fontSize: 13)),
@@ -205,298 +203,264 @@ class _ApplySugScreenState extends ConsumerState<ApplySugScreen> {
     final cn = context.cn;
     final depts = ref.watch(departmentsProvider).valueOrNull ?? const <DepartmentItem>[];
 
-    return Scaffold(
-      backgroundColor: cn.bg,
-      appBar: AppBar(
-        title: Text('Apply for SUG Access', style: TextStyle(fontWeight: FontWeight.w900, color: cn.textPrimary)),
-        actions: [
-          if (_stage != 'thanks')
-            TextButton(
-              onPressed: _openStatusCheckerSheet,
-              child: Text('Already Applied?', style: TextStyle(color: cn.accentLight, fontWeight: FontWeight.w800, fontSize: 12.5)),
-            ),
+    if (_stage == 'summary') {
+      return FlowSummaryScreen(
+        badgeText: 'OFFICIAL SUG PORTAL',
+        headline: 'SUG\nAccess',
+        summary:
+            'Apply as an elected or appointed Student Union Government representative to serve students directly across CampusNetwork.',
+        highlights: const [
+          (Icons.verified_user_rounded, 'Official gold SUG shield badge on your profile & answers'),
+          (Icons.chat_bubble_outline_rounded, 'Direct private student messaging & directory listing'),
+          (Icons.star_outline_rounded, 'Transparent student feedback & performance ratings'),
+          (Icons.admin_panel_settings_outlined, 'Reviewed securely by CampusNetwork administrators'),
         ],
+        ctaLabel: 'Continue to Application',
+        ctaIcon: Icons.shield_outlined,
+        onContinue: () => setState(() => _stage = 'form'),
+        secondaryLabel: 'Already Applied? Check Status',
+        onSecondary: _openStatusCheckerSheet,
+        onInfo: _openStatusCheckerSheet,
+        infoTooltip: 'Check existing application status',
+      );
+    }
+
+    if (_stage == 'thanks') {
+      final name = _first.text.trim().isNotEmpty ? _first.text.trim() : 'Applicant';
+      return Scaffold(
+        backgroundColor: cn.bg,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: MorphismCard(
+              padding: const EdgeInsets.all(26),
+              radius: 28,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_circle_rounded, size: 64, color: cn.success),
+                  const SizedBox(height: 14),
+                  Text('Thank you, $name!', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: cn.textPrimary)),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Your SUG Access application has been submitted for administrator review. You can check your status anytime using your email.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: cn.textMuted, fontSize: 14, height: 1.5),
+                  ),
+                  const SizedBox(height: 22),
+                  StepPrimaryButton(
+                    label: 'Done',
+                    onTap: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final titles = [
+      'Personal Details',
+      'Academic & Proof',
+      'Leadership Statement',
+      'Review & Submit',
+    ];
+    final subtitles = [
+      'Tell us who you are and how admins can reach you.',
+      'Select your faculty, office held, and optional verification proof.',
+      'Share your campus leadership bio and how you will help students.',
+      'Double-check your details before sending to reviewers.',
+    ];
+
+    return StepsFormScaffold(
+      stepTitle: titles[_step],
+      subtitle: subtitles[_step],
+      currentStep: _step,
+      totalSteps: 4,
+      primaryLabel: _step < 3 ? 'Continue' : 'Submit Application',
+      primaryBusy: _busy,
+      headerAction: LiquidTap(
+        onTap: _openStatusCheckerSheet,
+        child: const Text(
+          'Status',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
+        ),
       ),
-      body: _stage == 'thanks'
-          ? _buildThanks(cn)
-          : _stage == 'intro'
-              ? _buildIntro(cn)
-              : _buildForm(cn, depts),
+      onBack: () => setState(() {
+        if (_step == 0) {
+          _stage = 'summary';
+        } else {
+          _step--;
+        }
+      }),
+      onPrimary: () {
+        if (_step == 0) {
+          if (_first.text.trim().isEmpty || _last.text.trim().isEmpty || _email.text.trim().isEmpty) {
+            _toast('Fill in your first name, last name, and email.');
+            return;
+          }
+          setState(() => _step = 1);
+        } else if (_step == 1) {
+          if (_role.text.trim().isEmpty) {
+            _toast('Enter your SUG role or office title.');
+            return;
+          }
+          setState(() => _step = 2);
+        } else if (_step == 2) {
+          if (_bio.text.trim().length < 20 || _why.text.trim().length < 20) {
+            _toast('Both Bio and Statement must be at least 20 characters.');
+            return;
+          }
+          setState(() => _step = 3);
+        } else {
+          _submit();
+        }
+      },
+      body: _buildStepBody(cn, depts),
     );
   }
 
-  Widget _buildIntro(CampusColors cn) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 40),
-      children: [
-        MorphismCard(
-          padding: const EdgeInsets.all(22),
-          radius: 26,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(color: cn.goldSoft, borderRadius: BorderRadius.circular(18)),
-                child: Icon(Icons.shield_rounded, color: cn.gold, size: 32),
+  Widget _buildStepBody(CampusColors cn, List<DepartmentItem> depts) {
+    if (_step == 0) {
+      return Column(
+        children: [
+          StepCardInput(controller: _first, hint: 'First Name *', icon: Icons.person_outline_rounded),
+          const SizedBox(height: 14),
+          StepCardInput(controller: _last, hint: 'Last Name *', icon: Icons.person_outline_rounded),
+          const SizedBox(height: 14),
+          StepCardInput(
+            controller: _email,
+            hint: 'Email Address *',
+            icon: Icons.mail_outline_rounded,
+            keyboardType: TextInputType.emailAddress,
+          ),
+          const SizedBox(height: 14),
+          StepCardInput(
+            controller: _phone,
+            hint: 'Phone Number *',
+            icon: Icons.phone_outlined,
+            keyboardType: TextInputType.phone,
+          ),
+        ],
+      );
+    }
+
+    if (_step == 1) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FacultyDropdown(
+            options: depts.map((d) => DropdownOption(label: d.name, value: d.id.toString(), colorHex: d.color)).toList(),
+            value: _facultyId,
+            onChanged: (v) => setState(() => _facultyId = v),
+            placeholder: 'Select Academic Faculty *',
+          ),
+          const SizedBox(height: 14),
+          StepCardInput(controller: _subDept, hint: 'Academic Department *', icon: Icons.apartment_rounded),
+          const SizedBox(height: 14),
+          StepCardInput(controller: _role, hint: 'SUG Role / Office (e.g. Welfare Director) *', icon: Icons.badge_outlined),
+          const SizedBox(height: 14),
+          StepCardInput(controller: _refs, hint: 'References (optional)', icon: Icons.people_outline_rounded),
+          const SizedBox(height: 16),
+          LiquidTap(
+            onTap: _pickSupportingDoc,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: context.isDark ? const Color(0xFF18221F) : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _docPath != null ? cn.success : Colors.transparent),
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
               ),
-              const SizedBox(height: 14),
-              Text('Official SUG Representative Access', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: cn.textPrimary)),
-              const SizedBox(height: 8),
-              Text(
-                'Elected and appointed Student Union Government officials receive the official SUG Shield Badge, direct student messaging, and verified directory listing.',
-                style: TextStyle(color: cn.textMuted, fontSize: 14, height: 1.5),
-              ),
-              const SizedBox(height: 18),
-              for (final stepText in [
-                '1. Personal contact details',
-                '2. Academic office, ID proof & live face scan',
-                '3. Short leadership bio & mission statement',
-                '4. Admin review & instant badge activation',
-              ])
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      Icon(Icons.check_circle_outline_rounded, size: 17, color: cn.accentLight),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(stepText, style: TextStyle(color: cn.textPrimary, fontWeight: FontWeight.w600, fontSize: 13.5))),
-                    ],
+              child: Row(
+                children: [
+                  Icon(_docPath != null ? Icons.check_circle_rounded : Icons.upload_file_rounded,
+                      color: _docPath != null ? cn.success : const Color(0xFF0E4D45)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _docName ?? 'Upload Appointment / ID Proof (optional)',
+                      style: TextStyle(fontWeight: FontWeight.w700, color: cn.textPrimary, fontSize: 13.5),
+                    ),
                   ),
-                ),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => setState(() => _stage = 'form'),
-                  child: const Text('Start SUG Application'),
-                ),
+                ],
               ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: _openStatusCheckerSheet,
-                  child: const Text('Already Applied? Check Status'),
-                ),
-              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text('Live Face Check (optional)', style: TextStyle(color: cn.textMuted, fontWeight: FontWeight.w700, fontSize: 12.5)),
+          const SizedBox(height: 8),
+          FlutterLivenessCamera(
+            capturedPath: _livenessPath,
+            onCaptured: (p) => setState(() => _livenessPath = p),
+          ),
+        ],
+      );
+    }
+
+    if (_step == 2) {
+      return Column(
+        children: [
+          StepCardInput(
+            controller: _bio,
+            label: 'Short Leadership Bio *',
+            hint: 'Write at least 20 characters about your role & background...',
+            icon: Icons.edit_note_rounded,
+            maxLines: 4,
+            onChanged: (_) => setState(() {}),
+            helperText: '${_bio.text.trim().length} / 20 characters minimum',
+            helperColor: _bio.text.trim().length >= 20 ? cn.success : cn.textMuted,
+          ),
+          const SizedBox(height: 16),
+          StepCardInput(
+            controller: _why,
+            label: 'How will you serve students on CampusNetwork? *',
+            hint: 'Share your goals for helping classmates...',
+            icon: Icons.forum_outlined,
+            maxLines: 4,
+            onChanged: (_) => setState(() {}),
+            helperText: '${_why.text.trim().length} / 20 characters minimum',
+            helperColor: _why.text.trim().length >= 20 ? cn.success : cn.textMuted,
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: context.isDark ? const Color(0xFF18221F) : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
+          ),
+          child: Column(
+            children: [
+              _ReviewRow(label: 'Applicant', value: '${_first.text.trim()} ${_last.text.trim()}'),
+              _ReviewRow(label: 'Email', value: _email.text.trim()),
+              _ReviewRow(label: 'Office', value: _role.text.trim()),
+              _ReviewRow(label: 'Department', value: _subDept.text.trim()),
+              if (_docName != null) _ReviewRow(label: 'Document', value: _docName!),
             ],
           ),
         ),
-      ],
-    );
-  }
-
-  Widget _buildForm(CampusColors cn, List<DepartmentItem> depts) {
-    final labels = ['Personal Info', 'Academic & Proof', 'Statement', 'Review & Submit'];
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
-      children: [
-        // 4-step segmented progress bar (WELCOME BACK ref)
-        Row(
-          children: [
-            for (int i = 0; i < 4; i++)
-              Expanded(
-                child: Container(
-                  height: 4.5,
-                  margin: EdgeInsets.only(right: i < 3 ? 6 : 0),
-                  decoration: BoxDecoration(
-                    color: i <= _step ? cn.accent : cn.surfaceHigh,
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Text('Step ${_step + 1} of 4 · ${labels[_step]}', style: TextStyle(color: cn.accentLight, fontWeight: FontWeight.w800, fontSize: 13)),
         const SizedBox(height: 14),
-        MorphismCard(
-          padding: const EdgeInsets.all(18),
-          radius: 22,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (_step == 0) ...[
-                TextField(controller: _first, decoration: const InputDecoration(labelText: 'First Name *')),
-                const SizedBox(height: 10),
-                TextField(controller: _last, decoration: const InputDecoration(labelText: 'Last Name *')),
-                const SizedBox(height: 10),
-                TextField(controller: _email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Email Address *')),
-                const SizedBox(height: 10),
-                TextField(controller: _phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Phone Number *')),
-              ] else if (_step == 1) ...[
-                FacultyDropdown(
-                  options: depts.map((d) => DropdownOption(label: d.name, value: d.id.toString(), colorHex: d.color)).toList(),
-                  value: _facultyId,
-                  onChanged: (v) => setState(() => _facultyId = v),
-                  placeholder: 'Select Academic Faculty *',
-                ),
-                const SizedBox(height: 10),
-                TextField(controller: _subDept, decoration: const InputDecoration(labelText: 'Academic Department *')),
-                const SizedBox(height: 10),
-                TextField(controller: _role, decoration: const InputDecoration(labelText: 'SUG Role / Office Held *', hintText: 'e.g. SUG Welfare Director')),
-                const SizedBox(height: 10),
-                TextField(controller: _refs, decoration: const InputDecoration(labelText: 'References (optional)')),
-                const SizedBox(height: 14),
-                LiquidTap(
-                  onTap: _pickSupportingDoc,
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: cn.surfaceRecessed,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: _docPath != null ? cn.success : cn.borderSubtle),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(_docPath != null ? Icons.check_circle_rounded : Icons.upload_file_rounded, color: _docPath != null ? cn.success : cn.accentLight),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            _docName ?? 'Upload Appointment / ID Proof (optional)',
-                            style: TextStyle(fontWeight: FontWeight.w700, color: cn.textPrimary, fontSize: 13),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text('Live Face Check (optional)', style: TextStyle(color: cn.textMuted, fontWeight: FontWeight.w700, fontSize: 12.5)),
-                const SizedBox(height: 8),
-                FlutterLivenessCamera(
-                  capturedPath: _livenessPath,
-                  onCaptured: (p) => setState(() => _livenessPath = p),
-                ),
-              ] else if (_step == 2) ...[
-                TextField(
-                  controller: _bio,
-                  maxLines: 4,
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    labelText: 'Short Leadership Bio (min 20 chars) *',
-                    helperText: '${_bio.text.trim().length}/20 chars minimum',
-                    helperStyle: TextStyle(color: _bio.text.trim().length >= 20 ? cn.success : cn.textMuted),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: _why,
-                  maxLines: 4,
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    labelText: 'How will you serve students on CampusNetwork? (min 20 chars) *',
-                    helperText: '${_why.text.trim().length}/20 chars minimum',
-                    helperStyle: TextStyle(color: _why.text.trim().length >= 20 ? cn.success : cn.textMuted),
-                  ),
-                ),
-              ] else ...[
-                _ReviewRow(label: 'Applicant', value: '${_first.text.trim()} ${_last.text.trim()}'),
-                _ReviewRow(label: 'Email', value: _email.text.trim()),
-                _ReviewRow(label: 'Office', value: _role.text.trim()),
-                _ReviewRow(label: 'Department', value: _subDept.text.trim()),
-                if (_docName != null) _ReviewRow(label: 'Document', value: _docName!),
-                const SizedBox(height: 10),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _agree,
-                  onChanged: (v) => setState(() => _agree = v ?? false),
-                  title: Text(
-                    'I confirm that I am an authorized SUG representative and that all information provided is accurate.',
-                    style: TextStyle(color: cn.textPrimary, fontSize: 13, height: 1.4),
-                  ),
-                ),
-              ],
-            ],
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          activeColor: const Color(0xFF0E4D45),
+          value: _agree,
+          onChanged: (v) => setState(() => _agree = v ?? false),
+          title: Text(
+            'I confirm that I am an authorized SUG representative and that all information provided is accurate.',
+            style: TextStyle(color: cn.textPrimary, fontSize: 13.5, height: 1.4),
           ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => setState(() {
-                  if (_step == 0) {
-                    _stage = 'intro';
-                  } else {
-                    _step--;
-                  }
-                }),
-                child: const Text('Back'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: _busy
-                    ? null
-                    : () {
-                        if (_step == 0) {
-                          if (_first.text.trim().isEmpty || _last.text.trim().isEmpty || _email.text.trim().isEmpty) {
-                            _toast('Fill in your first name, last name, and email.');
-                            return;
-                          }
-                          setState(() => _step = 1);
-                        } else if (_step == 1) {
-                          if (_role.text.trim().isEmpty) {
-                            _toast('Enter your SUG role or office title.');
-                            return;
-                          }
-                          setState(() => _step = 2);
-                        } else if (_step == 2) {
-                          if (_bio.text.trim().length < 20 || _why.text.trim().length < 20) {
-                            _toast('Both Bio and Statement must be at least 20 characters.');
-                            return;
-                          }
-                          setState(() => _step = 3);
-                        } else {
-                          _submit();
-                        }
-                      },
-                child: Text(_step < 3 ? 'Continue' : (_busy ? 'Submitting...' : 'Submit Application')),
-              ),
-            ),
-          ],
         ),
       ],
-    );
-  }
-
-  Widget _buildThanks(CampusColors cn) {
-    final name = _first.text.trim().isNotEmpty ? _first.text.trim() : 'Applicant';
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: MorphismCard(
-          padding: const EdgeInsets.all(24),
-          radius: 26,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.check_circle_rounded, size: 60, color: cn.success),
-              const SizedBox(height: 14),
-              Text('Thank you, $name!', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: cn.textPrimary)),
-              const SizedBox(height: 8),
-              Text(
-                'Your SUG Access application has been submitted for administrator review. You can check your status anytime using your email.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: cn.textMuted, fontSize: 14, height: 1.5),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Done'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

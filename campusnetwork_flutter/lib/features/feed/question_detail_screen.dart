@@ -1,12 +1,14 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/models/models.dart';
 import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/morphism_widgets.dart';
+import '../../core/widgets/skeleton_widgets.dart';
 import '../auth/auth_provider.dart';
 import '../auth/landing_screen.dart';
 
@@ -195,7 +197,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
                 const SizedBox(height: 14),
 
                 if (_loading)
-                  const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
+                  const CommentsSkeletonList()
                 else if (_comments.isEmpty) ...[
                   MorphismCard(
                     child: Center(
@@ -283,7 +285,11 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
   }
 }
 
-/// Threaded Comment Card matching COMMENTS reference (vertical connecting line + floating pill reaction bar).
+/// Threaded Comment Card with clean 2-level alignment:
+/// - Top-level comment sits at left=0 (36dp avatar).
+/// - ALL replies (first reply AND replies-to-replies at any depth) stay aligned on
+///   the exact same indented rail (left=34dp, 32dp avatar) with a straight vertical
+///   connector line joining consecutive replies (no staircase squishing!).
 class _ThreadedCommentNode extends StatelessWidget {
   const _ThreadedCommentNode({
     required this.raw,
@@ -301,153 +307,64 @@ class _ThreadedCommentNode extends StatelessWidget {
   final Future<void> Function(int id) onLike;
   final ValueChanged<Map<String, dynamic>> onReply;
 
+  /// Flattens arbitrarily nested replies into an ordered list so every reply stays
+  /// on the exact same indented column while keeping `@parent` context.
+  List<_FlatReplyEntry> _flattenReplies(Map<String, dynamic> parent) {
+    final out = <_FlatReplyEntry>[];
+    void walk(Map<String, dynamic> node, {required bool showReplyingTo}) {
+      final parentUser = node['user'] is Map ? Map<String, dynamic>.from(node['user'] as Map) : const <String, dynamic>{};
+      final parentHandle = (parentUser['username'] ?? parentUser['name'] ?? '').toString();
+      final kids = (node['replies'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      for (final child in kids) {
+        out.add(_FlatReplyEntry(
+          raw: child,
+          replyingTo: showReplyingTo && parentHandle.isNotEmpty ? parentHandle : null,
+        ));
+        walk(child, showReplyingTo: true);
+      }
+    }
+
+    walk(parent, showReplyingTo: false);
+    return out;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final c = context.cn;
-    final id = (raw['id'] as num?)?.toInt() ?? 0;
-    final u = raw['user'] is Map ? Map<String, dynamic>.from(raw['user'] as Map) : <String, dynamic>{};
-    final replies = (raw['replies'] as List? ?? []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
-    final liked = raw['liked'] == true;
-    final likes = (raw['likes'] as num?)?.toInt() ?? 0;
-    final upvotes = (raw['upvotes'] as num?)?.toInt() ?? 0;
-    final downvotes = (raw['downvotes'] as num?)?.toInt() ?? 0;
-    final myVote = raw['my_vote']?.toString();
-
+    final flatReplies = _flattenReplies(raw);
     return Padding(
-      padding: EdgeInsets.only(left: depth > 0 ? 22.0 : 0.0, bottom: 12),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Avatar + Vertical Thread Connecting Line
-            Column(
-              children: [
-                GestureDetector(
-                  onTap: () {
-                    final uid = (u['id'] as num?)?.toInt();
-                    if (uid == null) return;
-                    // handled via UserIdentity too
-                  },
-                  child: UserAvatar(
-                    url: normalizeMediaUrl(u['avatar_url']?.toString()),
-                    initials: (u['av'] ?? '?').toString(),
-                    bgHex: (u['bg'] ?? '#3B82F6').toString(),
-                    size: depth > 0 ? 30 : 36,
-                  ),
-                ),
-                if (replies.isNotEmpty)
-                  Expanded(
-                    child: Container(
-                      width: 2,
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      decoration: BoxDecoration(color: c.divider, borderRadius: BorderRadius.circular(2)),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 10),
-            Expanded(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top-level comment (depth 0)
+          _CommentRow(
+            raw: raw,
+            avatarSize: 36,
+            connectBelow: false,
+            connectAbove: false,
+            replyingTo: null,
+            currentUserId: currentUserId,
+            onVote: onVote,
+            onLike: onLike,
+            onReply: onReply,
+          ),
+          // All replies aligned on ONE uniform indented rail connected by a straight vertical line
+          if (flatReplies.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 34, top: 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.fromLTRB(14, 11, 14, 22),
-                        decoration: BoxDecoration(
-                          color: c.surface,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: c.divider, width: 0.7),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    (u['name'] ?? 'Student').toString(),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: c.textPrimary),
-                                  ),
-                                ),
-                                BadgeRow(verified: u['is_verified_student'] == true, staff: u['staff'] == true, size: 13),
-                                const SizedBox(width: 6),
-                                Text((raw['time'] ?? '').toString(), style: TextStyle(color: c.textSecondary, fontSize: 11)),
-                              ],
-                            ),
-                            const SizedBox(height: 5),
-                            Text((raw['body'] ?? '').toString(), style: TextStyle(fontSize: 14, height: 1.45, color: c.textPrimary)),
-                          ],
-                        ),
-                      ),
-
-                      // Floating overlapping reaction pill (Like, Upvote, Downvote, Reply)
-                      Positioned(
-                        right: 8,
-                        bottom: -11,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: c.surfaceElevated,
-                            borderRadius: BorderRadius.circular(99),
-                            border: Border.all(color: c.divider),
-                            boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2))],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              LiquidTap(
-                                onTap: () => onLike(id),
-                                child: Row(
-                                  children: [
-                                    Icon(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 14, color: liked ? c.danger : c.textSecondary),
-                                    const SizedBox(width: 3),
-                                    Text('$likes', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: liked ? c.danger : c.textPrimary)),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              LiquidTap(
-                                onTap: () => onVote(id, 'up'),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.arrow_upward_rounded, size: 14, color: myVote == 'up' ? c.accent : c.textSecondary),
-                                    Text('$upvotes', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: myVote == 'up' ? c.accent : c.textPrimary)),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              LiquidTap(
-                                onTap: () => onVote(id, 'down'),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.arrow_downward_rounded, size: 14, color: myVote == 'down' ? c.danger : c.textSecondary),
-                                    Text('$downvotes', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: myVote == 'down' ? c.danger : c.textPrimary)),
-                                  ],
-                                ),
-                              ),
-                              if (depth < 3) ...[
-                                const SizedBox(width: 10),
-                                LiquidTap(
-                                  onTap: () => onReply(raw),
-                                  child: Text('Reply', style: TextStyle(color: c.accent, fontSize: 11.5, fontWeight: FontWeight.w800)),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  for (final rep in replies)
-                    _ThreadedCommentNode(
-                      raw: rep,
-                      depth: depth + 1,
+                  for (int i = 0; i < flatReplies.length; i++)
+                    _CommentRow(
+                      raw: flatReplies[i].raw,
+                      avatarSize: 32,
+                      connectAbove: i > 0,
+                      connectBelow: i < flatReplies.length - 1,
+                      replyingTo: flatReplies[i].replyingTo,
                       currentUserId: currentUserId,
                       onVote: onVote,
                       onLike: onLike,
@@ -456,8 +373,201 @@ class _ThreadedCommentNode extends StatelessWidget {
                 ],
               ),
             ),
-          ],
-        ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FlatReplyEntry {
+  const _FlatReplyEntry({required this.raw, this.replyingTo});
+  final Map<String, dynamic> raw;
+  final String? replyingTo;
+}
+
+class _CommentRow extends StatelessWidget {
+  const _CommentRow({
+    required this.raw,
+    required this.avatarSize,
+    required this.connectAbove,
+    required this.connectBelow,
+    required this.replyingTo,
+    required this.currentUserId,
+    required this.onVote,
+    required this.onLike,
+    required this.onReply,
+  });
+
+  final Map<String, dynamic> raw;
+  final double avatarSize;
+  final bool connectAbove;
+  final bool connectBelow;
+  final String? replyingTo;
+  final int? currentUserId;
+  final Future<void> Function(int id, String dir) onVote;
+  final Future<void> Function(int id) onLike;
+  final ValueChanged<Map<String, dynamic>> onReply;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.cn;
+    final id = (raw['id'] as num?)?.toInt() ?? 0;
+    final u = raw['user'] is Map ? Map<String, dynamic>.from(raw['user'] as Map) : <String, dynamic>{};
+    final uid = (u['id'] as num?)?.toInt();
+    final liked = raw['liked'] == true;
+    final likes = (raw['likes'] as num?)?.toInt() ?? 0;
+    final upvotes = (raw['upvotes'] as num?)?.toInt() ?? 0;
+    final downvotes = (raw['downvotes'] as num?)?.toInt() ?? 0;
+    final myVote = raw['my_vote']?.toString();
+
+    void openProfile() {
+      if (uid == null) return;
+      if (currentUserId != null && uid == currentUserId) {
+        context.go('/me');
+      } else {
+        context.push('/user/$uid');
+      }
+    }
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Straight vertical connector rail + avatar (matches X/Starling thread style)
+          SizedBox(
+            width: avatarSize,
+            child: Column(
+              children: [
+                if (connectAbove)
+                  Container(width: 2, height: 6, color: c.divider),
+                GestureDetector(
+                  onTap: openProfile,
+                  child: UserAvatar(
+                    url: normalizeMediaUrl(u['avatar_url']?.toString()),
+                    initials: (u['av'] ?? '?').toString(),
+                    bgHex: (u['bg'] ?? '#3B82F6').toString(),
+                    size: avatarSize,
+                  ),
+                ),
+                if (connectBelow)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      margin: const EdgeInsets.only(top: 4),
+                      color: c.divider,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(top: connectAbove ? 4 : 0, bottom: 16),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(13, 10, 13, 22),
+                    decoration: BoxDecoration(
+                      color: c.surface,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: c.divider, width: 0.7),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: openProfile,
+                                child: Text(
+                                  (u['name'] ?? 'Student').toString(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: c.textPrimary),
+                                ),
+                              ),
+                            ),
+                            BadgeRow(verified: u['is_verified_student'] == true, staff: u['staff'] == true, size: 13),
+                            const SizedBox(width: 6),
+                            Text((raw['time'] ?? '').toString(), style: TextStyle(color: c.textSecondary, fontSize: 11)),
+                          ],
+                        ),
+                        if (replyingTo != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            'Replying to @$replyingTo',
+                            style: TextStyle(color: c.accent, fontSize: 11.5, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                        const SizedBox(height: 5),
+                        Text((raw['body'] ?? '').toString(), style: TextStyle(fontSize: 14, height: 1.45, color: c.textPrimary)),
+                      ],
+                    ),
+                  ),
+
+                  // Floating overlapping reaction pill (Like, Upvote, Downvote, Reply)
+                  Positioned(
+                    right: 8,
+                    bottom: -11,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: c.surfaceElevated,
+                        borderRadius: BorderRadius.circular(99),
+                        border: Border.all(color: c.divider),
+                        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2))],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          LiquidTap(
+                            onTap: () => onLike(id),
+                            child: Row(
+                              children: [
+                                Icon(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 14, color: liked ? c.danger : c.textSecondary),
+                                const SizedBox(width: 3),
+                                Text('$likes', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: liked ? c.danger : c.textPrimary)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          LiquidTap(
+                            onTap: () => onVote(id, 'up'),
+                            child: Row(
+                              children: [
+                                Icon(Icons.arrow_upward_rounded, size: 14, color: myVote == 'up' ? c.accent : c.textSecondary),
+                                Text('$upvotes', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: myVote == 'up' ? c.accent : c.textPrimary)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          LiquidTap(
+                            onTap: () => onVote(id, 'down'),
+                            child: Row(
+                              children: [
+                                Icon(Icons.arrow_downward_rounded, size: 14, color: myVote == 'down' ? c.danger : c.textSecondary),
+                                Text('$downvotes', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: myVote == 'down' ? c.danger : c.textPrimary)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          LiquidTap(
+                            onTap: () => onReply(raw),
+                            child: Text('Reply', style: TextStyle(color: c.accent, fontSize: 11.5, fontWeight: FontWeight.w800)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

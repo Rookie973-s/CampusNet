@@ -78,18 +78,24 @@ class DepartmentItem {
     required this.name,
     this.color = '#4A90FF',
     this.questionsCount = 0,
+    this.subDepartments = const [],
   });
 
   final int id;
   final String name;
   final String color;
   final int questionsCount;
+  final List<Map<String, dynamic>> subDepartments;
 
   factory DepartmentItem.fromJson(Map<String, dynamic> j) => DepartmentItem(
         id: (j['id'] as num?)?.toInt() ?? 0,
         name: (j['name'] ?? '').toString(),
         color: (j['color'] ?? '#4A90FF').toString(),
-        questionsCount: (j['questions_count'] as num?)?.toInt() ?? 0,
+        questionsCount: ((j['questions_count'] ?? j['count']) as num?)?.toInt() ?? 0,
+        subDepartments: (j['sub_departments'] as List? ?? [])
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList(),
       );
 }
 

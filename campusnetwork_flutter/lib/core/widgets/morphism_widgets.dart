@@ -223,7 +223,7 @@ class BadgeRow extends StatelessWidget {
             padding: const EdgeInsets.only(left: 4),
             child: Tooltip(
               message: 'Verified Student',
-              child: Icon(Icons.verified_rounded, size: size, color: c.accent),
+              child: Icon(Icons.verified_rounded, size: size, color: c.success),
             ),
           ),
         if (showStaff)

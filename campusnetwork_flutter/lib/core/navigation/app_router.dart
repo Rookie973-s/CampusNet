@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -21,15 +22,42 @@ import '../../features/sug/sug_screen.dart';
 import '../models/models.dart';
 import 'app_shell.dart';
 
+/// Notifies GoRouter ONLY when routing-relevant auth flags change
+/// (booting / isAuthenticated / guestEntered) — NEVER when user profile data refreshes!
+/// This prevents refreshMe() or profile edits from resetting the router back to /feed.
+class _AuthRouterRefresh extends ChangeNotifier {
+  _AuthRouterRefresh(Ref ref) {
+    _sub = ref.listen<AuthState>(authProvider, (prev, next) {
+      if (prev == null ||
+          prev.booting != next.booting ||
+          prev.isAuthenticated != next.isAuthenticated ||
+          prev.guestEntered != next.guestEntered) {
+        notifyListeners();
+      }
+    });
+  }
+
+  late final ProviderSubscription<AuthState> _sub;
+
+  @override
+  void dispose() {
+    _sub.close();
+    super.dispose();
+  }
+}
+
 /// GoRouter Configuration (ZERO Home route on mobile!)
 /// - Unauthenticated launch -> /landing
 /// - Authenticated launch -> /feed directly
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final auth = ref.watch(authProvider);
+  final refresh = _AuthRouterRefresh(ref);
+  ref.onDispose(refresh.dispose);
 
   return GoRouter(
     initialLocation: '/feed',
+    refreshListenable: refresh,
     redirect: (context, state) {
+      final auth = ref.read(authProvider);
       if (auth.booting) return null;
       final onLanding = state.matchedLocation == '/landing';
       if (!auth.isAuthenticated && !auth.guestEntered && !onLanding) {

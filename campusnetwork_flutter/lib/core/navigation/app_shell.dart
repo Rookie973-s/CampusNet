@@ -169,12 +169,13 @@ class _AppShellState extends ConsumerState<AppShell> with SingleTickerProviderSt
             if (_fabOpen)
               Positioned.fill(
                 child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
                   onTap: () => _toggleFab(false),
                   child: Container(color: c.scrim),
                 ),
               ),
 
-            // Curved Notched Bottom Navigation Bar (NAVIGATION BAR ref) + 3-Action FAB (Post, Poll, Search)
+            // Curved Notched Bottom Navigation Bar (NAVIGATION BAR ref) + Central FAB
             Positioned(
               left: 14,
               right: 14,
@@ -192,43 +193,11 @@ class _AppShellState extends ConsumerState<AppShell> with SingleTickerProviderSt
                   ),
                 ),
                 child: SizedBox(
-                  height: 165,
+                  height: 92,
                   child: Stack(
                     alignment: Alignment.bottomCenter,
                     clipBehavior: Clip.none,
                     children: [
-                      // 3 Expandable Radial Actions: Create Post (left), Create Poll (top-center), Search (right)
-                      _RadialFabAction(
-                        ctrl: _fabCtrl,
-                        open: _fabOpen,
-                        dx: -80,
-                        dy: -78,
-                        icon: Icons.edit_rounded,
-                        label: 'Post',
-                        color: c.accent,
-                        onTap: _openCreatePost,
-                      ),
-                      _RadialFabAction(
-                        ctrl: _fabCtrl,
-                        open: _fabOpen,
-                        dx: 0,
-                        dy: -108,
-                        icon: Icons.bar_chart_rounded,
-                        label: 'Poll',
-                        color: const Color(0xFF00BA7C),
-                        onTap: _openCreatePoll,
-                      ),
-                      _RadialFabAction(
-                        ctrl: _fabCtrl,
-                        open: _fabOpen,
-                        dx: 80,
-                        dy: -78,
-                        icon: Icons.search_rounded,
-                        label: 'Search',
-                        color: const Color(0xFF8B5CF6),
-                        onTap: _openSearch,
-                      ),
-
                       // Concave Notched Bottom Bar Shape (NAVIGATION BAR reference!)
                       RepaintBoundary(
                         child: ClipPath(
@@ -327,6 +296,54 @@ class _AppShellState extends ConsumerState<AppShell> with SingleTickerProviderSt
                 ),
               ),
             ),
+
+            // 3 Expandable Radial Actions positioned directly on top of the scrim
+            // with REAL layout bounds (no Transform.translate hit-test mismatch!)
+            if (_fabOpen)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: MediaQuery.paddingOf(context).bottom + 102,
+                child: AnimatedBuilder(
+                  animation: _fabCtrl,
+                  builder: (_, child) {
+                    final v = _fabCtrl.value.clamp(0.0, 1.08);
+                    return Opacity(
+                      opacity: v.clamp(0.0, 1.0),
+                      child: Transform.scale(scale: (0.7 + 0.3 * v).clamp(0.6, 1.05), child: child),
+                    );
+                  },
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      _FabActionPill(
+                        icon: Icons.edit_rounded,
+                        label: 'Post',
+                        color: c.accent,
+                        onTap: _openCreatePost,
+                      ),
+                      const SizedBox(width: 24),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 24),
+                        child: _FabActionPill(
+                          icon: Icons.bar_chart_rounded,
+                          label: 'Poll',
+                          color: const Color(0xFF00BA7C),
+                          onTap: _openCreatePoll,
+                        ),
+                      ),
+                      const SizedBox(width: 24),
+                      _FabActionPill(
+                        icon: Icons.search_rounded,
+                        label: 'Search',
+                        color: const Color(0xFF8B5CF6),
+                        onTap: _openSearch,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -385,22 +402,14 @@ Path _buildNotchedPath(Size size) {
   return path;
 }
 
-class _RadialFabAction extends StatelessWidget {
-  const _RadialFabAction({
-    required this.ctrl,
-    required this.open,
-    required this.dx,
-    required this.dy,
+class _FabActionPill extends StatelessWidget {
+  const _FabActionPill({
     required this.icon,
     required this.label,
     required this.color,
     required this.onTap,
   });
 
-  final AnimationController ctrl;
-  final bool open;
-  final double dx;
-  final double dy;
   final IconData icon;
   final String label;
   final Color color;
@@ -408,44 +417,35 @@ class _RadialFabAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: ctrl,
-      builder: (_, child) {
-        final v = ctrl.value.clamp(0.0, 1.2);
-        return IgnorePointer(
-          ignoring: !open,
-          child: Opacity(
-            opacity: v.clamp(0.0, 1.0),
-            child: Transform.translate(
-              offset: Offset(dx * v, dy * v - 22),
-              child: Transform.scale(scale: (0.35 + 0.65 * v).clamp(0.2, 1.08), child: child),
-            ),
-          ),
-        );
-      },
-      child: Material(
-        type: MaterialType.transparency,
-        child: LiquidTap(
-          onTap: onTap,
+    return Material(
+      type: MaterialType.transparency,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(6),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: 54,
+                height: 54,
                 decoration: BoxDecoration(
                   color: color,
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white30, width: 1.5),
-                  boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(0, 4))],
+                  boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 12, offset: Offset(0, 4))],
                 ),
-                child: Icon(icon, color: Colors.white, size: 21),
+                child: Icon(icon, color: Colors.white, size: 23),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: const Color(0xDD0B1220), borderRadius: BorderRadius.circular(99)),
-                child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800, decoration: TextDecoration.none)),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(color: const Color(0xE60B1220), borderRadius: BorderRadius.circular(99)),
+                child: Text(
+                  label,
+                  style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w800, decoration: TextDecoration.none),
+                ),
               ),
             ],
           ),

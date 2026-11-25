@@ -8,6 +8,7 @@ import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/morphism_widgets.dart';
+import '../../core/widgets/skeleton_widgets.dart';
 import '../auth/auth_provider.dart';
 import '../auth/landing_screen.dart';
 
@@ -127,7 +128,7 @@ class _PublicProfileScreenState extends ConsumerState<PublicProfileScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const ProfileHeroSkeleton()
           : _error != null || _profile == null
               ? Center(
                   child: Column(

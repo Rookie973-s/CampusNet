@@ -9,6 +9,7 @@ import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/morphism_widgets.dart';
+import '../../core/widgets/skeleton_widgets.dart';
 import '../auth/auth_provider.dart';
 
 /// Relocated Search Screen — reached exclusively from the central '+' Expandable Action Menu (Part 7.4).
@@ -144,7 +145,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const FeedSkeletonList(count: 4)
           : _error != null
               ? Center(
                   child: Column(

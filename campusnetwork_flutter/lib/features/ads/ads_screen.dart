@@ -10,7 +10,9 @@ import '../../core/models/models.dart';
 import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/form_templates.dart';
 import '../../core/widgets/morphism_widgets.dart';
+import '../../core/widgets/skeleton_widgets.dart';
 import '../auth/auth_provider.dart';
 import '../auth/landing_screen.dart';
 
@@ -21,8 +23,8 @@ const _kPlacements = [
   ('comments', 'Comments'),
 ];
 
-/// Advertising Dashboard & Analytics (ADS TRACKER reference) + 5-Step Ad Wizard
-/// (ADS PLACEMENT reference) with server-authoritative ₦5,000 cap & Paystack checkout.
+/// Advertising Dashboard & Analytics (ADS TRACKER ref) + Summary Screen (Image 3)
+/// + 5-Step Styled Ad Wizard (Steps Form ref) with server-authoritative ₦5,000 cap.
 class AdsDashboardScreen extends ConsumerStatefulWidget {
   const AdsDashboardScreen({super.key});
 
@@ -40,6 +42,7 @@ class _AdsDashboardScreenState extends ConsumerState<AdsDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    ref.read(departmentsProvider.notifier).ensureLoaded();
     _load();
   }
 
@@ -120,12 +123,12 @@ class _AdsDashboardScreenState extends ConsumerState<AdsDashboardScreen> {
                 onTap: _openCreateWizard,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-                  decoration: BoxDecoration(color: cn.accent, borderRadius: BorderRadius.circular(999)),
+                  decoration: BoxDecoration(color: const Color(0xFF0E4D45), borderRadius: BorderRadius.circular(999)),
                   child: const Row(
                     children: [
                       Icon(Icons.add_rounded, size: 17, color: Colors.white),
                       SizedBox(width: 4),
-                      Text('New Ad', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12.5)),
+                      Text('Place Ad', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12.5)),
                     ],
                   ),
                 ),
@@ -141,7 +144,7 @@ class _AdsDashboardScreenState extends ConsumerState<AdsDashboardScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.campaign_rounded, size: 48, color: cn.accentLight),
+                      Icon(Icons.campaign_rounded, size: 48, color: cn.success),
                       const SizedBox(height: 10),
                       Text('Advertise on CampusNetwork', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: cn.textPrimary)),
                       const SizedBox(height: 6),
@@ -151,7 +154,7 @@ class _AdsDashboardScreenState extends ConsumerState<AdsDashboardScreen> {
                         style: TextStyle(color: cn.textMuted),
                       ),
                       const SizedBox(height: 16),
-                      ElevatedButton(onPressed: () => showAuthSheet(context), child: const Text('Sign In to Advertise')),
+                      ForestPillButton(label: 'Sign In to Advertise', onTap: () => showAuthSheet(context)),
                     ],
                   ),
                 ),
@@ -160,9 +163,7 @@ class _AdsDashboardScreenState extends ConsumerState<AdsDashboardScreen> {
           : RefreshIndicator(
               color: cn.accent,
               onRefresh: _load,
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _buildDashboardBody(cn),
+              child: _loading ? const AdsDashboardSkeleton() : _buildDashboardBody(cn),
             ),
     );
   }
@@ -181,7 +182,6 @@ class _AdsDashboardScreenState extends ConsumerState<AdsDashboardScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 48),
       children: [
-        // Range selector pills (ADS TRACKER reference)
         Row(
           children: [
             for (final r in [('7d', '7 Days'), ('30d', '30 Days'), ('90d', '90 Days')])
@@ -213,8 +213,6 @@ class _AdsDashboardScreenState extends ConsumerState<AdsDashboardScreen> {
           ],
         ),
         const SizedBox(height: 14),
-
-        // KPI Metric Strip
         Row(
           children: [
             Expanded(child: _KpiTile(label: 'Impressions', value: '$totalImpressions', color: cn.accentLight)),
@@ -225,8 +223,6 @@ class _AdsDashboardScreenState extends ConsumerState<AdsDashboardScreen> {
           ],
         ),
         const SizedBox(height: 14),
-
-        // Interactive Daily Performance Bar Chart (ADS TRACKER ref)
         MorphismCard(
           padding: const EdgeInsets.all(16),
           radius: 22,
@@ -291,7 +287,6 @@ class _AdsDashboardScreenState extends ConsumerState<AdsDashboardScreen> {
           ),
         ),
         const SizedBox(height: 18),
-
         Row(
           children: [
             Text('Your Campaigns (${_campaigns.length})', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: cn.textPrimary)),
@@ -300,13 +295,12 @@ class _AdsDashboardScreenState extends ConsumerState<AdsDashboardScreen> {
           ],
         ),
         const SizedBox(height: 10),
-
         if (_campaigns.isEmpty)
           MorphismCard(
             padding: const EdgeInsets.all(22),
             child: Column(
               children: [
-                Icon(Icons.rocket_launch_outlined, size: 40, color: cn.accentLight),
+                Icon(Icons.rocket_launch_outlined, size: 40, color: cn.success),
                 const SizedBox(height: 10),
                 Text('No campaigns yet', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cn.textPrimary)),
                 const SizedBox(height: 4),
@@ -315,8 +309,8 @@ class _AdsDashboardScreenState extends ConsumerState<AdsDashboardScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(color: cn.textMuted, fontSize: 13),
                 ),
-                const SizedBox(height: 14),
-                ElevatedButton(onPressed: _openCreateWizard, child: const Text('Create Your First Ad')),
+                const SizedBox(height: 16),
+                StepPrimaryButton(label: 'Create Your First Ad', onTap: _openCreateWizard),
               ],
             ),
           )
@@ -408,8 +402,9 @@ class _KpiTile extends StatelessWidget {
   }
 }
 
-/// 5-Step High-Contrast Ad Placement Wizard (ADS PLACEMENT reference)
-/// with server-authoritative POST /api/ads/quote/ strictly capped at ₦5,000.
+/// Ad Placement Flow:
+/// 1. Summary Screen (Image 3 style)
+/// 2. 5-Step Styled Wizard (Image 2 style — server quote capped at ₦5,000 + Paystack)
 class _AdWizardScreen extends ConsumerStatefulWidget {
   const _AdWizardScreen();
 
@@ -418,6 +413,7 @@ class _AdWizardScreen extends ConsumerStatefulWidget {
 }
 
 class _AdWizardScreenState extends ConsumerState<_AdWizardScreen> {
+  bool _passedSummary = false;
   int _step = 0; // 0..4 (5 steps)
   final _title = TextEditingController();
   final _desc = TextEditingController();
@@ -436,6 +432,7 @@ class _AdWizardScreenState extends ConsumerState<_AdWizardScreen> {
   @override
   void initState() {
     super.initState();
+    ref.read(departmentsProvider.notifier).ensureLoaded();
     _refreshQuote();
   }
 
@@ -507,7 +504,6 @@ class _AdWizardScreenState extends ConsumerState<_AdWizardScreen> {
       }
       final createRes = await api.dio.post('/ads/', data: form);
       final adId = createRes.data['id'];
-      // Trigger Paystack checkout if enabled
       try {
         final payRes = await api.dio.post('/ads/$adId/initiate-payment/');
         final url = payRes.data['authorization_url']?.toString();
@@ -530,7 +526,41 @@ class _AdWizardScreenState extends ConsumerState<_AdWizardScreen> {
   Widget build(BuildContext context) {
     final cn = context.cn;
     final depts = ref.watch(departmentsProvider).valueOrNull ?? const <DepartmentItem>[];
-    final stepLabels = ['Ad Content', 'Target Audience', 'Placements & Duration', 'Budget (Max ₦5,000)', 'Review & Launch'];
+
+    // 1. Summary Screen (Image 3 style)
+    if (!_passedSummary) {
+      return FlowSummaryScreen(
+        badgeText: 'MAX ₦5,000 / CAMPAIGN',
+        headline: 'Place\nCampus Ads',
+        summary:
+            'Promote your student brand, tutorial, event, or campus service natively across Feeds, Library, Communities & Comments.',
+        highlights: const [
+          (Icons.groups_rounded, 'Target all ATBU students or narrow down to a specific faculty'),
+          (Icons.visibility_outlined, 'Fair multi-campaign rotation with real impressions & clicks tracking'),
+          (Icons.account_balance_wallet_outlined, 'Student-friendly budgets strictly capped at ₦5,000'),
+          (Icons.insights_rounded, 'Live analytics dashboard with pause & resume anytime'),
+        ],
+        ctaLabel: 'Build Your Ad',
+        ctaIcon: Icons.campaign_rounded,
+        onContinue: () => setState(() => _passedSummary = true),
+      );
+    }
+
+    // 2. 5-Step Styled Wizard (Image 2 style)
+    final stepTitles = [
+      'Ad Creative',
+      'Target Audience',
+      'Placements & Days',
+      'Campaign Budget',
+      'Review & Launch',
+    ];
+    final stepSubtitles = [
+      'Write a clear headline, description, and optional banner image.',
+      'Reach all students or filter by a specific academic faculty.',
+      'Pick where your sponsored card appears and for how long.',
+      'Set your budget (server-verified cap: ₦5,000).',
+      'Preview your live sponsored card and launch with Paystack.',
+    ];
 
     final previewAd = ServedAd(
       id: 0,
@@ -542,206 +572,273 @@ class _AdWizardScreenState extends ConsumerState<_AdWizardScreen> {
       destinationUrl: _ctaUrl.text.trim(),
     );
 
-    return Scaffold(
-      backgroundColor: cn.bg,
-      appBar: AppBar(
-        title: Text('Place an Ad', style: TextStyle(fontWeight: FontWeight.w900, color: cn.textPrimary)),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 40),
-        children: [
-          Row(
-            children: [
-              for (int i = 0; i < 5; i++)
-                Expanded(
-                  child: Container(
-                    height: 4.5,
-                    margin: EdgeInsets.only(right: i < 4 ? 5 : 0),
-                    decoration: BoxDecoration(
-                      color: i <= _step ? cn.accent : cn.surfaceHigh,
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text('Step ${_step + 1} of 5 · ${stepLabels[_step]}', style: TextStyle(color: cn.accentLight, fontWeight: FontWeight.w800, fontSize: 13)),
-          const SizedBox(height: 14),
+    return StepsFormScaffold(
+      stepTitle: stepTitles[_step],
+      subtitle: stepSubtitles[_step],
+      currentStep: _step,
+      totalSteps: 5,
+      primaryLabel: _step < 4 ? 'Continue' : 'Launch & Pay ₦${_budgetNgn.round()}',
+      primaryBusy: _submitting,
+      onBack: () => setState(() {
+        if (_step == 0) {
+          _passedSummary = false;
+        } else {
+          _step--;
+        }
+      }),
+      onPrimary: () {
+        if (_step == 0 && (_title.text.trim().isEmpty || _desc.text.trim().isEmpty)) {
+          _toast('Enter a headline and description first.');
+          return;
+        }
+        if (_step < 4) {
+          setState(() => _step++);
+          if (_step == 3) _refreshQuote();
+        } else {
+          _launchCampaign();
+        }
+      },
+      body: _buildStepBody(cn, depts, previewAd),
+    );
+  }
 
-          MorphismCard(
-            padding: const EdgeInsets.all(18),
-            radius: 22,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (_step == 0) ...[
-                  TextField(
-                    controller: _title,
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(labelText: 'Headline *', hintText: 'e.g. Fast Laptop Repairs @ Yelwa'),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _desc,
-                    maxLines: 3,
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(labelText: 'Description *', hintText: 'Tell students what you offer...'),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(child: TextField(controller: _ctaText, onChanged: (_) => setState(() {}), decoration: const InputDecoration(labelText: 'Button Text'))),
-                      const SizedBox(width: 10),
-                      Expanded(child: TextField(controller: _ctaUrl, decoration: const InputDecoration(labelText: 'Link / WhatsApp URL'))),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: _pickImage,
-                    icon: Icon(_image != null ? Icons.check_circle_rounded : Icons.add_photo_alternate_outlined),
-                    label: Text(_image != null ? 'Image selected (${_image!.name})' : 'Add Ad Banner Image'),
-                  ),
-                  const SizedBox(height: 14),
-                  Text('Live Feed Preview', style: TextStyle(color: cn.textMuted, fontWeight: FontWeight.w800, fontSize: 12)),
-                  const SizedBox(height: 6),
-                  IgnorePointer(child: NativeAdCard(ad: previewAd, placement: 'preview')),
-                ] else if (_step == 1) ...[
-                  Text('Target a specific faculty or reach all ATBU students.', style: TextStyle(color: cn.textMuted, fontSize: 13.5)),
-                  const SizedBox(height: 12),
-                  FacultyDropdown(
-                    options: [
-                      const DropdownOption(label: 'All Campus Students', value: ''),
-                      ...depts.map((d) => DropdownOption(label: d.name, value: d.name, colorHex: d.color)),
-                    ],
-                    value: _targetFaculty,
-                    onChanged: (v) {
-                      setState(() => _targetFaculty = v);
-                      _refreshQuote();
-                    },
-                  ),
-                  if (_quote?['estimated_reach'] != null) ...[
-                    const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(color: cn.accentSoft, borderRadius: BorderRadius.circular(14)),
-                      child: Row(
-                        children: [
-                          Icon(Icons.groups_rounded, color: cn.accentLight),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Estimated Reach: ${_quote!['estimated_reach']} active students',
-                            style: TextStyle(fontWeight: FontWeight.w800, color: cn.textPrimary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ] else if (_step == 2) ...[
-                  Text('Where should your ad appear?', style: TextStyle(fontWeight: FontWeight.w800, color: cn.textPrimary)),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final p in _kPlacements)
-                        FilterChip(
-                          label: Text(p.$2),
-                          selected: _placements.contains(p.$1),
-                          onSelected: (sel) {
-                            setState(() {
-                              if (sel) {
-                                _placements.add(p.$1);
-                              } else if (_placements.length > 1) {
-                                _placements.remove(p.$1);
-                              }
-                            });
-                            _refreshQuote();
-                          },
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text('Campaign Duration: $_durationDays days', style: TextStyle(fontWeight: FontWeight.w800, color: cn.textPrimary)),
-                  Slider(
-                    value: _durationDays.toDouble(),
-                    min: 1,
-                    max: 30,
-                    divisions: 29,
-                    label: '$_durationDays days',
-                    onChanged: (v) => setState(() => _durationDays = v.round()),
-                    onChangeEnd: (_) => _refreshQuote(),
-                  ),
-                ] else if (_step == 3) ...[
-                  Text('Campaign Budget (Server Cap: ₦5,000)', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cn.textPrimary)),
-                  const SizedBox(height: 6),
-                  Text(
-                    '₦${_budgetNgn.round()}',
-                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: cn.accentLight),
-                  ),
-                  Slider(
-                    value: _budgetNgn,
-                    min: 500,
-                    max: 5000,
-                    divisions: 9,
-                    label: '₦${_budgetNgn.round()}',
-                    onChanged: (v) => setState(() => _budgetNgn = v),
-                    onChangeEnd: (_) => _refreshQuote(),
-                  ),
-                  if (_quoting)
-                    const Padding(padding: EdgeInsets.only(top: 8), child: LinearProgressIndicator())
-                  else if (_quote != null)
-                    Text(
-                      'Server Verified Quote: ₦${_quote!['amount_ngn'] ?? _budgetNgn.round()} (Max ₦${_quote!['max_price_ngn'] ?? 5000})',
-                      style: TextStyle(color: cn.success, fontWeight: FontWeight.w800, fontSize: 13),
-                    ),
-                ] else ...[
-                  Text('Ready to Launch', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: cn.textPrimary)),
-                  const SizedBox(height: 10),
-                  Text('Headline: ${_title.text.trim()}', style: TextStyle(color: cn.textPrimary, fontWeight: FontWeight.w700)),
-                  Text('Audience: ${_targetFaculty.isEmpty ? 'All Campus' : _targetFaculty}', style: TextStyle(color: cn.textMuted)),
-                  Text('Placements: ${_placements.join(', ')}', style: TextStyle(color: cn.textMuted)),
-                  Text('Duration: $_durationDays days · Total: ₦${_budgetNgn.round()}', style: TextStyle(color: cn.accentLight, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 14),
-                  IgnorePointer(child: NativeAdCard(ad: previewAd, placement: 'preview')),
-                ],
-              ],
-            ),
+  Widget _buildStepBody(CampusColors cn, List<DepartmentItem> depts, ServedAd previewAd) {
+    final isDark = context.isDark;
+    final cardBg = isDark ? const Color(0xFF18221F) : Colors.white;
+
+    if (_step == 0) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          StepCardInput(
+            controller: _title,
+            hint: 'Headline (e.g. Fast Laptop Repairs @ Yelwa) *',
+            icon: Icons.title_rounded,
+            onChanged: (_) => setState(() {}),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          StepCardInput(
+            controller: _desc,
+            hint: 'Tell students what you offer... *',
+            icon: Icons.description_outlined,
+            maxLines: 3,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 12),
           Row(
             children: [
-              if (_step > 0)
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => setState(() => _step--),
-                    child: const Text('Back'),
-                  ),
-                ),
-              if (_step > 0) const SizedBox(width: 10),
               Expanded(
-                child: ElevatedButton(
-                  onPressed: _submitting
-                      ? null
-                      : () {
-                          if (_step == 0 && (_title.text.trim().isEmpty || _desc.text.trim().isEmpty)) {
-                            _toast('Enter a headline and description first.');
-                            return;
-                          }
-                          if (_step < 4) {
-                            setState(() => _step++);
-                            if (_step == 3) _refreshQuote();
-                          } else {
-                            _launchCampaign();
-                          }
-                        },
-                  child: Text(_step < 4 ? 'Continue' : (_submitting ? 'Launching...' : 'Launch & Pay ₦${_budgetNgn.round()}')),
+                child: StepCardInput(
+                  controller: _ctaText,
+                  hint: 'Button Text',
+                  icon: Icons.touch_app_outlined,
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: StepCardInput(
+                  controller: _ctaUrl,
+                  hint: 'Link / WhatsApp',
+                  icon: Icons.link_rounded,
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 14),
+          LiquidTap(
+            onTap: _pickImage,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
+              ),
+              child: Row(
+                children: [
+                  Icon(_image != null ? Icons.check_circle_rounded : Icons.add_photo_alternate_outlined,
+                      color: _image != null ? cn.success : const Color(0xFF0E4D45)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _image != null ? 'Image selected (${_image!.name})' : 'Add Ad Banner Image (optional)',
+                      style: TextStyle(fontWeight: FontWeight.w700, color: cn.textPrimary, fontSize: 13.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text('Live Feed Preview', style: TextStyle(color: cn.textMuted, fontWeight: FontWeight.w800, fontSize: 12)),
+          const SizedBox(height: 6),
+          IgnorePointer(child: NativeAdCard(ad: previewAd, placement: 'preview')),
         ],
-      ),
+      );
+    }
+
+    if (_step == 1) {
+      return Column(
+        children: [
+          FacultyDropdown(
+            options: [
+              const DropdownOption(label: 'All Campus Students', value: ''),
+              ...depts.map((d) => DropdownOption(label: d.name, value: d.name, colorHex: d.color)),
+            ],
+            value: _targetFaculty,
+            onChanged: (v) {
+              setState(() => _targetFaculty = v);
+              _refreshQuote();
+            },
+          ),
+          if (_quote?['estimated_reach'] != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.groups_rounded, color: cn.success, size: 26),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Estimated Reach: ${_quote!['estimated_reach']} active students',
+                      style: TextStyle(fontWeight: FontWeight.w800, color: cn.textPrimary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+
+    if (_step == 2) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Ad Placements', style: TextStyle(fontWeight: FontWeight.w800, color: cn.textPrimary)),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final p in _kPlacements)
+                  FilterChip(
+                    label: Text(p.$2),
+                    selected: _placements.contains(p.$1),
+                    onSelected: (sel) {
+                      setState(() {
+                        if (sel) {
+                          _placements.add(p.$1);
+                        } else if (_placements.length > 1) {
+                          _placements.remove(p.$1);
+                        }
+                      });
+                      _refreshQuote();
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Text('Duration: $_durationDays days', style: TextStyle(fontWeight: FontWeight.w800, color: cn.textPrimary)),
+            Slider(
+              value: _durationDays.toDouble(),
+              min: 1,
+              max: 30,
+              divisions: 29,
+              activeColor: const Color(0xFF0E4D45),
+              label: '$_durationDays days',
+              onChanged: (v) => setState(() => _durationDays = v.round()),
+              onChangeEnd: (_) => _refreshQuote(),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_step == 3) {
+      return Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Budget (Server Cap: ₦5,000)', style: TextStyle(fontWeight: FontWeight.w800, color: cn.textMuted, fontSize: 13)),
+            const SizedBox(height: 6),
+            Text(
+              '₦${_budgetNgn.round()}',
+              style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: cn.success),
+            ),
+            Slider(
+              value: _budgetNgn,
+              min: 500,
+              max: 5000,
+              divisions: 9,
+              activeColor: const Color(0xFF0E4D45),
+              label: '₦${_budgetNgn.round()}',
+              onChanged: (v) => setState(() => _budgetNgn = v),
+              onChangeEnd: (_) => _refreshQuote(),
+            ),
+            if (_quoting)
+              const Padding(padding: EdgeInsets.only(top: 8), child: SkeletonBox(height: 16, width: 220, radius: 6))
+            else if (_quote != null)
+              Text(
+                'Server Verified Quote: ₦${_quote!['amount_ngn'] ?? _budgetNgn.round()} (Max ₦${_quote!['max_price_ngn'] ?? 5000})',
+                style: TextStyle(color: cn.success, fontWeight: FontWeight.w800, fontSize: 13),
+              ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Headline: ${_title.text.trim()}', style: TextStyle(color: cn.textPrimary, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              Text('Audience: ${_targetFaculty.isEmpty ? 'All Campus' : _targetFaculty}', style: TextStyle(color: cn.textMuted)),
+              Text('Placements: ${_placements.join(', ')}', style: TextStyle(color: cn.textMuted)),
+              const SizedBox(height: 4),
+              Text(
+                'Duration: $_durationDays days · Total: ₦${_budgetNgn.round()}',
+                style: TextStyle(color: cn.success, fontWeight: FontWeight.w900),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        IgnorePointer(child: NativeAdCard(ad: previewAd, placement: 'preview')),
+      ],
     );
   }
 }
