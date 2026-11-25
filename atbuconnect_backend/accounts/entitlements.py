@@ -43,7 +43,7 @@ def get_entitlements(user) -> dict:
     media_privileged = verified or verified_sug or admin
     return {
         "is_verified_student": verified,
-        "can_edit_own_posts": privileged,
+        "can_edit_own_posts": media_privileged,
         "can_delete_own_posts_anytime": privileged,
         "max_post_words": VERIFIED_MAX_POST_WORDS if privileged else ORDINARY_MAX_POST_WORDS,
         "max_post_chars": VERIFIED_MAX_POST_CHARS if privileged else ORDINARY_MAX_POST_CHARS,

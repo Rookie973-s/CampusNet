@@ -210,7 +210,11 @@ class QuestionViewSet(viewsets.ModelViewSet):
         p = self.request.query_params
         topic = p.get("topic")
         if topic and topic != "All":
-            qs = qs.filter(Q(department__name__iexact=topic) | Q(tags__name__iexact=topic)).distinct()
+            qs = qs.filter(
+                Q(department__name__iexact=topic)
+                | Q(department__isnull=True)
+                | Q(tags__name__iexact=topic)
+            ).distinct()
 
         # Topic-based discovery filter (e.g. clicking a Trending Now entry)
         discovery = (p.get("discovery") or "").strip()
@@ -316,7 +320,7 @@ class QuestionViewSet(viewsets.ModelViewSet):
         if not can_edit_question(request.user, question):
             if question.author_id == request.user.id:
                 return Response(
-                    {"detail": "Only verified students can edit published posts."},
+                    {"detail": "Only verified students and verified SUG officials can edit published posts."},
                     status=status.HTTP_403_FORBIDDEN,
                 )
             return Response({"detail": "You cannot edit someone else's post."}, status=status.HTTP_403_FORBIDDEN)

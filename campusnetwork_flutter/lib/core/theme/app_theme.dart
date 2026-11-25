@@ -204,6 +204,45 @@ class AppTheme {
         foregroundColor: c.textPrimary,
       ),
       dividerColor: c.divider,
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: c.surfaceMuted,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(
+            color: brightness == Brightness.dark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.04),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: c.accent.withValues(alpha: 0.55), width: 1.2),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: c.accent,
+          foregroundColor: Colors.white,
+          elevation: 2,
+          shadowColor: c.accent.withValues(alpha: 0.35),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: c.textPrimary,
+          side: BorderSide(color: c.divider.withValues(alpha: 0.7)),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+        ),
+      ),
       splashFactory: NoSplash.splashFactory,
       highlightColor: Colors.transparent,
       extensions: [c],

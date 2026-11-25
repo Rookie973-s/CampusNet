@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/auth_provider.dart';
 import '../../features/auth/landing_screen.dart';
 import '../../features/feed/create_post_modals.dart';
+import '../../features/feed/feed_screen.dart';
 import '../motion/liquid_motion.dart';
 import '../network/api_client.dart';
 import '../theme/app_theme.dart';
@@ -88,7 +89,19 @@ class _AppShellState extends ConsumerState<AppShell> with SingleTickerProviderSt
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: c.background,
-      endDrawer: _HamburgerDrawer(user: user, unread: unread),
+      endDrawer: _HamburgerDrawer(
+        user: user,
+        unread: unread,
+        onSelectTrending: (discovery, title) {
+          chromeCtrl.show();
+          widget.navigationShell.goBranch(0, initialLocation: true);
+          ref.read(feedProvider.notifier).load(
+                discovery: discovery,
+                discoveryLabel: title,
+                clearDiscovery: false,
+              );
+        },
+      ),
       body: NotificationListener<ScrollNotification>(
         onNotification: (n) => chromeCtrl.handleScroll(n, keyboardOpen: keyboardOpen || _fabOpen),
         child: Stack(
@@ -101,8 +114,9 @@ class _AppShellState extends ConsumerState<AppShell> with SingleTickerProviderSt
               ),
             ),
 
-            // Liquid-Glass Floating Top Navbar (TOP NAVBAR reference — NO search icon!)
-            Positioned(
+            // Liquid-Glass Floating Top Navbar — shown ONLY on Feed (hidden on Library, SUG & Me so it never obstructs!)
+            if (idx == 0)
+              Positioned(
               top: MediaQuery.paddingOf(context).top + 8,
               left: 14,
               right: 14,
@@ -521,9 +535,10 @@ class _NavTab extends StatelessWidget {
 }
 
 class _HamburgerDrawer extends ConsumerStatefulWidget {
-  const _HamburgerDrawer({this.user, required this.unread});
+  const _HamburgerDrawer({this.user, required this.unread, required this.onSelectTrending});
   final dynamic user;
   final int unread;
+  final void Function(String discovery, String title) onSelectTrending;
 
   @override
   ConsumerState<_HamburgerDrawer> createState() => _HamburgerDrawerState();
@@ -624,7 +639,9 @@ class _HamburgerDrawerState extends ConsumerState<_HamburgerDrawer> {
                       LiquidTap(
                         onTap: () {
                           Navigator.of(context).pop();
-                          context.push('/search', extra: (_trending[i]['title'] ?? '').toString());
+                          final title = (_trending[i]['title'] ?? '').toString();
+                          final discovery = (_trending[i]['discovery'] ?? title).toString();
+                          widget.onSelectTrending(discovery, title);
                         },
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 8),

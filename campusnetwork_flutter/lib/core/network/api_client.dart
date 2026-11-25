@@ -8,10 +8,16 @@ const String kWebOrigin = 'https://campusnetwork-sooty.vercel.app';
 const _kAccessKey = 'cn_access';
 const _kRefreshKey = 'cn_refresh';
 
-/// Ensures any Render media URL always uses HTTPS so Android never blocks cleartext images.
+const String kApiOrigin = 'https://campusnetwork-api.onrender.com';
+
+/// Ensures any Render media URL (absolute http:// or relative /media/...) always
+/// resolves to a valid HTTPS URL so Android & Web display synced media identically.
 String? normalizeMediaUrl(String? url) {
   if (url == null || url.trim().isEmpty) return null;
   final u = url.trim();
+  if (u.startsWith('/')) {
+    return '$kApiOrigin$u';
+  }
   if (u.startsWith('http://') && u.contains('onrender.com')) {
     return 'https://${u.substring(7)}';
   }

@@ -280,6 +280,10 @@ class _StudentVerificationScreenState extends ConsumerState<StudentVerificationS
           _toast('Please select your faculty.');
           return;
         }
+        if (_step == 3 && _docPath == null && _status?['has_existing_document'] != true) {
+          _toast('Please upload your Student ID card or Admission Letter (required).');
+          return;
+        }
         if (_step == 6 && !_consent) {
           _toast('Please check the consent box to continue.');
           return;
@@ -393,7 +397,7 @@ class _StudentVerificationScreenState extends ConsumerState<StudentVerificationS
               ),
               const SizedBox(height: 10),
               Text(
-                _docName ?? 'Tap to choose Student ID or Admission PDF/Photo',
+                _docName ?? 'Tap to upload Student ID or Admission PDF/Photo * (Required)',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontWeight: FontWeight.w800, color: cn.textPrimary),
               ),

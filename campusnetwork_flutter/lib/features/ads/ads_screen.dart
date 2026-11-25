@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
@@ -423,11 +424,24 @@ class _AdWizardScreenState extends ConsumerState<_AdWizardScreen> {
   XFile? _image;
   String _targetFaculty = '';
   int _durationDays = 7;
-  final Set<String> _placements = {'feed', 'library'};
-  double _budgetNgn = 2500;
+  final Set<String> _placements = {'feed'};
+  double _computedPriceNgn = 900;
   Map<String, dynamic>? _quote;
   bool _quoting = false;
   bool _submitting = false;
+
+  String _isoDate(DateTime dt) =>
+      '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+
+  Map<String, dynamic> _buildTargetingPayload() {
+    if (_targetFaculty.isEmpty) {
+      return {'audience': 'all', 'faculties': <String>[]};
+    }
+    return {
+      'audience': 'faculty',
+      'faculties': [_targetFaculty],
+    };
+  }
 
   @override
   void initState() {
@@ -458,19 +472,24 @@ class _AdWizardScreenState extends ConsumerState<_AdWizardScreen> {
   Future<void> _refreshQuote() async {
     setState(() => _quoting = true);
     try {
+      final now = DateTime.now();
+      final end = now.add(Duration(days: math.max(0, _durationDays - 1)));
       final res = await ref.read(apiClientProvider).dio.post('/ads/quote/', data: {
+        'start_date': _isoDate(now),
+        'end_date': _isoDate(end),
         'duration_days': _durationDays,
         'placements': _placements.toList(),
-        'target_faculty': _targetFaculty,
-        'total_budget': _budgetNgn.round(),
+        'targeting': _buildTargetingPayload(),
+        if (_targetFaculty.isNotEmpty) 'target_faculty': _targetFaculty,
       });
       if (mounted) {
         final q = Map<String, dynamic>.from(res.data as Map);
         setState(() {
           _quote = q;
-          final serverAmount = (q['amount_ngn'] as num?)?.toDouble();
-          if (serverAmount != null && serverAmount <= 5000) {
-            _budgetNgn = serverAmount.clamp(500, 5000);
+          final serverAmount = (q['amount_num'] as num?)?.toDouble() ??
+              double.tryParse((q['amount_ngn'] ?? '').toString());
+          if (serverAmount != null) {
+            _computedPriceNgn = serverAmount.clamp(900, 5000);
           }
         });
       }
@@ -481,23 +500,34 @@ class _AdWizardScreenState extends ConsumerState<_AdWizardScreen> {
   }
 
   Future<void> _launchCampaign() async {
-    if (_title.text.trim().isEmpty || _desc.text.trim().isEmpty) {
+    final headline = _title.text.trim();
+    final desc = _desc.text.trim();
+    if (headline.isEmpty || desc.isEmpty) {
       _toast('Enter your ad headline and description.');
       return;
     }
+    var destUrl = _ctaUrl.text.trim();
+    if (destUrl.isNotEmpty && !destUrl.startsWith('http://') && !destUrl.startsWith('https://')) {
+      destUrl = 'https://$destUrl';
+    }
+
     setState(() => _submitting = true);
     try {
       final api = ref.read(apiClientProvider);
+      final now = DateTime.now();
+      final end = now.add(Duration(days: math.max(0, _durationDays - 1)));
       final form = FormData();
       form.fields.addAll([
-        MapEntry('title', _title.text.trim()),
-        MapEntry('description', _desc.text.trim()),
+        MapEntry('name', headline),
+        MapEntry('headline', headline),
+        MapEntry('description', desc),
         MapEntry('cta_text', _ctaText.text.trim().isEmpty ? 'Learn More' : _ctaText.text.trim()),
-        if (_ctaUrl.text.trim().isNotEmpty) MapEntry('cta_url', _ctaUrl.text.trim()),
-        MapEntry('total_budget', _budgetNgn.clamp(500, 5000).round().toString()),
-        MapEntry('duration_days', _durationDays.toString()),
-        MapEntry('placement', _placements.isNotEmpty ? _placements.first : 'feed'),
-        if (_targetFaculty.isNotEmpty) MapEntry('target_faculty', _targetFaculty),
+        if (destUrl.isNotEmpty) MapEntry('destination_url', destUrl),
+        MapEntry('start_date', _isoDate(now)),
+        MapEntry('end_date', _isoDate(end)),
+        MapEntry('placements', jsonEncode(_placements.toList())),
+        MapEntry('targeting', jsonEncode(_buildTargetingPayload())),
+        MapEntry('total_budget', _computedPriceNgn.clamp(900, 5000).toStringAsFixed(2)),
       ]);
       if (_image != null) {
         form.files.add(MapEntry('image', await MultipartFile.fromFile(_image!.path, filename: _image!.name)));
@@ -506,7 +536,7 @@ class _AdWizardScreenState extends ConsumerState<_AdWizardScreen> {
       final adId = createRes.data['id'];
       try {
         final payRes = await api.dio.post('/ads/$adId/initiate-payment/');
-        final url = payRes.data['authorization_url']?.toString();
+        final url = (payRes.data['checkout_url'] ?? payRes.data['authorization_url'])?.toString();
         if (url != null && url.isNotEmpty) {
           await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
         }
@@ -558,7 +588,7 @@ class _AdWizardScreenState extends ConsumerState<_AdWizardScreen> {
       'Write a clear headline, description, and optional banner image.',
       'Reach all students or filter by a specific academic faculty.',
       'Pick where your sponsored card appears and for how long.',
-      'Set your budget (server-verified cap: ₦5,000).',
+      'Set your placements & duration — pricing is auto-calculated (₦900–₦5,000).',
       'Preview your live sponsored card and launch with Paystack.',
     ];
 
@@ -577,7 +607,7 @@ class _AdWizardScreenState extends ConsumerState<_AdWizardScreen> {
       subtitle: stepSubtitles[_step],
       currentStep: _step,
       totalSteps: 5,
-      primaryLabel: _step < 4 ? 'Continue' : 'Launch & Pay ₦${_budgetNgn.round()}',
+      primaryLabel: _step < 4 ? 'Continue' : 'Launch & Pay ₦${_computedPriceNgn.round()}',
       primaryBusy: _submitting,
       onBack: () => setState(() {
         if (_step == 0) {
@@ -772,39 +802,43 @@ class _AdWizardScreenState extends ConsumerState<_AdWizardScreen> {
     }
 
     if (_step == 3) {
+      final breakdown = _quote?['breakdown'] is Map ? Map<String, dynamic>.from(_quote!['breakdown'] as Map) : const <String, dynamic>{};
       return Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: cardBg,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 14, offset: const Offset(0, 5))],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Budget (Server Cap: ₦5,000)', style: TextStyle(fontWeight: FontWeight.w800, color: cn.textMuted, fontSize: 13)),
-            const SizedBox(height: 6),
             Text(
-              '₦${_budgetNgn.round()}',
-              style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: cn.success),
+              'Calculated Campaign Price (Non-Negotiable · ₦900 – ₦5,000)',
+              style: TextStyle(fontWeight: FontWeight.w800, color: cn.textMuted, fontSize: 12.5),
             ),
-            Slider(
-              value: _budgetNgn,
-              min: 500,
-              max: 5000,
-              divisions: 9,
-              activeColor: const Color(0xFF0E4D45),
-              label: '₦${_budgetNgn.round()}',
-              onChanged: (v) => setState(() => _budgetNgn = v),
-              onChangeEnd: (_) => _refreshQuote(),
-            ),
+            const SizedBox(height: 8),
             if (_quoting)
-              const Padding(padding: EdgeInsets.only(top: 8), child: SkeletonBox(height: 16, width: 220, radius: 6))
-            else if (_quote != null)
+              const Padding(padding: EdgeInsets.symmetric(vertical: 14), child: SkeletonBox(height: 36, width: 160, radius: 10))
+            else
               Text(
-                'Server Verified Quote: ₦${_quote!['amount_ngn'] ?? _budgetNgn.round()} (Max ₦${_quote!['max_price_ngn'] ?? 5000})',
-                style: TextStyle(color: cn.success, fontWeight: FontWeight.w800, fontSize: 13),
+                '₦${_computedPriceNgn.round()}',
+                style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: cn.success),
               ),
+            const SizedBox(height: 12),
+            Text(
+              'Determined automatically by your Estimated Reach (${_quote?['estimated_reach'] ?? '—'} students), Placements (${_placements.length}), and Duration ($_durationDays day${_durationDays == 1 ? '' : 's'}).',
+              style: TextStyle(color: cn.textMuted, fontSize: 12.5, height: 1.45),
+            ),
+            if (breakdown.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Divider(height: 1, color: cn.divider),
+              const SizedBox(height: 10),
+              _PriceLine(label: 'Base Campaign Fee', amount: breakdown['base']),
+              _PriceLine(label: 'Duration ($_durationDays day${_durationDays == 1 ? '' : 's'})', amount: breakdown['duration']),
+              _PriceLine(label: 'Placements (${_placements.length})', amount: breakdown['placements']),
+              _PriceLine(label: 'Audience Reach (${_quote?['estimated_reach'] ?? 0})', amount: breakdown['audience']),
+            ],
           ],
         ),
       );
@@ -818,7 +852,7 @@ class _AdWizardScreenState extends ConsumerState<_AdWizardScreen> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: cardBg,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
           ),
           child: Column(
@@ -826,11 +860,11 @@ class _AdWizardScreenState extends ConsumerState<_AdWizardScreen> {
             children: [
               Text('Headline: ${_title.text.trim()}', style: TextStyle(color: cn.textPrimary, fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
-              Text('Audience: ${_targetFaculty.isEmpty ? 'All Campus' : _targetFaculty}', style: TextStyle(color: cn.textMuted)),
+              Text('Audience: ${_targetFaculty.isEmpty ? 'All Campus' : _targetFaculty} (${_quote?['estimated_reach'] ?? 0} students)', style: TextStyle(color: cn.textMuted)),
               Text('Placements: ${_placements.join(', ')}', style: TextStyle(color: cn.textMuted)),
               const SizedBox(height: 4),
               Text(
-                'Duration: $_durationDays days · Total: ₦${_budgetNgn.round()}',
+                'Duration: $_durationDays days · Total: ₦${_computedPriceNgn.round()}',
                 style: TextStyle(color: cn.success, fontWeight: FontWeight.w900),
               ),
             ],
@@ -839,6 +873,27 @@ class _AdWizardScreenState extends ConsumerState<_AdWizardScreen> {
         const SizedBox(height: 16),
         IgnorePointer(child: NativeAdCard(ad: previewAd, placement: 'preview')),
       ],
+    );
+  }
+}
+
+class _PriceLine extends StatelessWidget {
+  const _PriceLine({required this.label, required this.amount});
+  final String label;
+  final dynamic amount;
+
+  @override
+  Widget build(BuildContext context) {
+    final cn = context.cn;
+    final val = (amount as num?)?.round() ?? 0;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Expanded(child: Text(label, style: TextStyle(color: cn.textMuted, fontSize: 13))),
+          Text('₦$val', style: TextStyle(color: cn.textPrimary, fontWeight: FontWeight.w800, fontSize: 13)),
+        ],
+      ),
     );
   }
 }

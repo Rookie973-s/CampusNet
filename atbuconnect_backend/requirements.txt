@@ -13,6 +13,6 @@ PyMySQL>=1.1
 # PDF library: structural validation of uploaded PDFs (the app still works without it, with weaker checks)
 pypdf>=4.0
 
-# Optional, enable only if you use the matching feature:
-#   google-auth>=2.29            # "Continue with Google" (also set GOOGLE_CLIENT_ID)
-#   django-storages[s3]>=1.14    # S3-compatible media storage (also set USE_S3_MEDIA=true and AWS_* vars)
+# Persistent cloud media storage (Cloudflare R2 / AWS S3 / Supabase S3 — activated via USE_S3_MEDIA=true)
+django-storages[s3]>=1.14
+# Optional: google-auth>=2.29 (also set GOOGLE_CLIENT_ID)

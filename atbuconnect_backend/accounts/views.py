@@ -235,6 +235,16 @@ class ForgotPasswordView(APIView):
         user = User.objects.filter(email__iexact=email, is_active=True).first()
         if not user:
             return Response(generic)
+        if not user.email_verified:
+            return Response(
+                {
+                    "detail": (
+                        "Password reset is only available for verified email addresses. "
+                        "Please verify your email in Account Settings first."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Per-email rate limit: max 3 requests in the last hour
         hour_ago = timezone.now() - timedelta(hours=1)
@@ -404,7 +414,7 @@ class StaffDirectoryViewSet(generics.ListAPIView):
 
     queryset = User.objects.filter(
         is_active=True, is_verified_staff=True
-    ).filter(Q(role=User.Role.STAFF) | Q(role=User.Role.ADMIN)).select_related("department")
+    ).select_related("department")
     serializer_class = StaffDirectorySerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]

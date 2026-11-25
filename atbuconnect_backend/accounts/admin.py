@@ -30,6 +30,12 @@ class UserAdmin(BaseUserAdmin):
         }),
     )
 
+    def save_model(self, request, obj, form, change):
+        # Automatically align role=STAFF whenever admin marks a student as Verified SUG
+        if obj.is_verified_staff and obj.role == User.Role.STUDENT:
+            obj.role = User.Role.STAFF
+        super().save_model(request, obj, form, change)
+
 
 @admin.register(StaffRating)
 class StaffRatingAdmin(admin.ModelAdmin):

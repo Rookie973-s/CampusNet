@@ -69,13 +69,13 @@ class AppBottomSheet {
   }
 }
 
-/// Theme-aware Surface Card.
+/// Theme-aware Sculpted Claymorphism Card (soft pillowy edges & shadows, no hard solid borders!).
 class MorphismCard extends StatelessWidget {
   const MorphismCard({
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(16),
-    this.radius = 20,
+    this.radius = 22,
     this.color,
   });
 
@@ -87,12 +87,30 @@ class MorphismCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.cn;
+    final isDark = context.isDark;
+    final base = color ?? c.surface;
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: color ?? c.surface,
+        color: base,
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: c.divider, width: 0.9),
+        border: Border.all(
+          color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.white.withValues(alpha: 0.85),
+          width: 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black.withValues(alpha: 0.42) : const Color(0xFF0F172A).withValues(alpha: 0.06),
+            blurRadius: 18,
+            spreadRadius: -2,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.white.withValues(alpha: 0.80),
+            blurRadius: 6,
+            offset: const Offset(-2, -2),
+          ),
+        ],
       ),
       child: child,
     );
@@ -357,16 +375,27 @@ class FacultyDropdown extends StatelessWidget {
           orElse: () => null,
         );
 
+    final isDark = context.isDark;
     return LiquidTap(
       onTap: () => _openSheet(context),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         decoration: BoxDecoration(
           color: c.surface,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: value.isNotEmpty && value != 'All' ? c.accent : c.divider,
+            color: value.isNotEmpty && value != 'All'
+                ? c.accent.withValues(alpha: 0.45)
+                : (isDark ? Colors.white.withValues(alpha: 0.07) : Colors.white.withValues(alpha: 0.9)),
+            width: 1.0,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: isDark ? Colors.black.withValues(alpha: 0.35) : const Color(0xFF0F172A).withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           children: [

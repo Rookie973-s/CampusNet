@@ -45,6 +45,11 @@ class CampaignSerializer(serializers.ModelSerializer):
             mutable = data.dict()
         else:
             mutable = dict(data)
+        # Accept headline/title fallback for name so mobile/web forms never trip on missing name
+        if not mutable.get("name") and (mutable.get("headline") or mutable.get("title")):
+            mutable["name"] = str(mutable.get("headline") or mutable.get("title"))[:120]
+        if not mutable.get("headline") and mutable.get("title"):
+            mutable["headline"] = str(mutable.get("title"))[:140]
         for key in ("targeting", "placements", "active_days"):
             val = mutable.get(key)
             if isinstance(val, str):

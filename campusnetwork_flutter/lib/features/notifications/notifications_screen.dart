@@ -6,7 +6,7 @@ import '../../core/motion/liquid_motion.dart';
 import '../../core/theme/app_theme.dart';
 import '../auth/auth_provider.dart';
 
-/// Real-Time Notifications Screen with full Light & Dark mode support.
+/// Real-Time Notifications Screen with narrow-screen-safe AppBar (no badge/button overlap!).
 class NotificationsScreen extends ConsumerWidget {
   const NotificationsScreen({super.key});
 
@@ -19,15 +19,27 @@ class NotificationsScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: cn.bg,
       appBar: AppBar(
+        titleSpacing: 0,
         title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Notifications', style: TextStyle(fontWeight: FontWeight.w900, color: cn.textPrimary)),
+            Flexible(
+              child: Text(
+                'Notifications',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19, color: cn.textPrimary),
+              ),
+            ),
             if (unread > 0) ...[
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(color: cn.danger, borderRadius: BorderRadius.circular(999)),
-                child: Text('$unread', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
+                child: Text(
+                  '$unread',
+                  style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w800),
+                ),
               ),
             ],
           ],
@@ -35,13 +47,23 @@ class NotificationsScreen extends ConsumerWidget {
         actions: [
           if (unread > 0)
             TextButton(
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 36),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               onPressed: () => ref.read(notificationsProvider.notifier).markAllRead(),
-              child: const Text('Mark read'),
+              child: const Text('Mark read', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
             ),
           if (notifs.isNotEmpty)
             TextButton(
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                minimumSize: const Size(0, 36),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               onPressed: () => ref.read(notificationsProvider.notifier).clearAll(),
-              child: Text('Clear', style: TextStyle(color: cn.danger)),
+              child: Text('Clear', style: TextStyle(color: cn.danger, fontSize: 13, fontWeight: FontWeight.w700)),
             ),
         ],
       ),
@@ -58,7 +80,7 @@ class NotificationsScreen extends ConsumerWidget {
             : ListView.separated(
                 padding: const EdgeInsets.all(14),
                 itemCount: notifs.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (_, i) {
                   final n = notifs[i];
                   return LiquidTap(
@@ -80,18 +102,24 @@ class NotificationsScreen extends ConsumerWidget {
                       }
                     },
                     child: Container(
-                      padding: const EdgeInsets.all(13),
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: n.read ? cn.surface : cn.accentSoft,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: cn.borderSubtle),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: context.isDark ? 0.25 : 0.05),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
                       child: Row(
                         children: [
                           Container(
                             width: 42,
                             height: 42,
-                            decoration: BoxDecoration(color: cn.surfaceRecessed, borderRadius: BorderRadius.circular(12)),
+                            decoration: BoxDecoration(color: cn.surfaceRecessed, borderRadius: BorderRadius.circular(14)),
                             child: Icon(
                               n.type == 'like'
                                   ? Icons.favorite_rounded

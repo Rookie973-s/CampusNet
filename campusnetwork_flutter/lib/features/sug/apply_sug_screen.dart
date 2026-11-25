@@ -306,6 +306,10 @@ class _ApplySugScreenState extends ConsumerState<ApplySugScreen> {
             _toast('Enter your SUG role or office title.');
             return;
           }
+          if (_docPath == null) {
+            _toast('Please upload your Student ID / Appointment proof (required).');
+            return;
+          }
           setState(() => _step = 2);
         } else if (_step == 2) {
           if (_bio.text.trim().length < 20 || _why.text.trim().length < 20) {
@@ -381,7 +385,7 @@ class _ApplySugScreenState extends ConsumerState<ApplySugScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      _docName ?? 'Upload Appointment / ID Proof (optional)',
+                      _docName ?? 'Upload Student ID / Appointment Proof * (Required)',
                       style: TextStyle(fontWeight: FontWeight.w700, color: cn.textPrimary, fontSize: 13.5),
                     ),
                   ),

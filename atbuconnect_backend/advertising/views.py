@@ -298,41 +298,46 @@ class CampaignViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["post"])
     def quote(self, request):
-        """POST /api/ads/quote/ — server-authoritative pricing (strictly capped at ₦5,000)."""
-        from django.contrib.auth import get_user_model
+        """POST /api/ads/quote/ — server-authoritative non-negotiable pricing (₦900 – ₦5,000)."""
         from datetime import date as _date
 
-        User = get_user_model()
         raw_start = request.data.get("start_date")
         raw_end = request.data.get("end_date")
+        raw_days = request.data.get("duration_days")
         try:
             start_d = _date.fromisoformat(str(raw_start)) if raw_start else timezone.localdate()
-            end_d = _date.fromisoformat(str(raw_end)) if raw_end else start_d + timedelta(days=7)
-        except ValueError:
+            if raw_end:
+                end_d = _date.fromisoformat(str(raw_end))
+            elif raw_days:
+                end_d = start_d + timedelta(days=max(1, int(raw_days)) - 1)
+            else:
+                end_d = start_d + timedelta(days=6)
+        except (ValueError, TypeError):
             return Response({"detail": "Invalid start_date or end_date format (YYYY-MM-DD)."}, status=400)
         if end_d < start_d:
             return Response({"detail": "end_date cannot be earlier than start_date."}, status=400)
 
         targeting = request.data.get("targeting") or {}
+        if not isinstance(targeting, dict):
+            targeting = {}
+        target_fac = (request.data.get("target_faculty") or "").strip()
+        if target_fac and not targeting.get("faculties"):
+            targeting = {**targeting, "audience": "faculty", "faculties": [target_fac]}
         placements = request.data.get("placements") or ["feed"]
         est = calculate_ad_price(start_d, end_d, targeting=targeting, placements=placements)
-
-        # Compute real eligible student reach from database
-        qs_users = User.objects.filter(is_active=True)
-        facs = targeting.get("faculties") if isinstance(targeting, dict) else None
-        if facs:
-            qs_users = qs_users.filter(department__name__in=facs)
-        est["estimated_reach"] = qs_users.count()
         est["amount_kobo"] = int(Decimal(est["amount_ngn"]) * 100)
         return Response(est)
 
     @action(detail=False, methods=["get"])
     def serve(self, request):
-        """Return currently eligible active campaigns with weighted multi-advertiser rotation.
+        """Return currently eligible active campaigns with fair equal rotation.
 
-        Fixes single-ad replacement: orders by least impressions first so multiple active
-        campaigns from different advertisers rotate fairly instead of only showing the newest ad.
+        Orders by least impressions first, and rotates across active campaigns on each
+        request so multiple running ads take equal turns across Feed, Library, Communities,
+        and re-entries into Comments.
         """
+        import random
+
         u = request.user
         if u and u.is_authenticated and get_entitlements(u)["hide_ads"]:
             return Response([])
@@ -356,7 +361,7 @@ class CampaignViewSet(viewsets.ModelViewSet):
         for c in qs:
             if not c.is_eligible_to_serve(today):
                 continue
-            # Audience faculty targeting check
+            # Audience faculty targeting check (unassigned/unverified users see targeted ads too)
             tgt = c.targeting if isinstance(c.targeting, dict) else {}
             facs = tgt.get("faculties") or []
             if facs and user_dept and user_dept not in facs:
@@ -366,10 +371,15 @@ class CampaignViewSet(viewsets.ModelViewSet):
                 eligible.append(c)
             elif placement in ("library", "communities", "comments") and "feed" in pl:
                 fallback.append(c)
-            if len(eligible) >= 10:
+            if len(eligible) >= 12:
                 break
         if not eligible and fallback:
-            eligible = fallback[:6]
+            eligible = fallback[:8]
+
+        # Fair rotation: rotate the eligible pool so re-entering a screen cycles through all active ads equally
+        if len(eligible) > 1:
+            shift = random.randrange(len(eligible))
+            eligible = eligible[shift:] + eligible[:shift]
 
         return Response(ServedAdSerializer(eligible, many=True, context={"request": request}).data)
 

@@ -134,11 +134,10 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
     setState(() => _busy = true);
     try {
       final api = ref.read(apiClientProvider);
-      final chosenDept = _deptId.isNotEmpty ? _deptId : (depts.isNotEmpty ? depts.first.id.toString() : '');
       final form = FormData();
       form.fields.add(MapEntry('title', cleanTitle));
       form.fields.add(MapEntry('body', cleanBody.isNotEmpty ? cleanBody : cleanTitle));
-      if (chosenDept.isNotEmpty) form.fields.add(MapEntry('department', chosenDept));
+      if (_deptId.isNotEmpty) form.fields.add(MapEntry('department', _deptId));
       for (final t in _tags.text.split(',').map((e) => e.trim().replaceFirst('#', '')).where((e) => e.isNotEmpty).take(5)) {
         form.fields.add(MapEntry('tags', t));
       }
@@ -326,10 +325,13 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
               ),
               const SizedBox(height: 12),
               FacultyDropdown(
-                options: depts.map((d) => DropdownOption(label: d.name, value: d.id.toString(), colorHex: d.color)).toList(),
-                value: _deptId.isNotEmpty ? _deptId : (depts.isNotEmpty ? depts.first.id.toString() : ''),
+                options: [
+                  const DropdownOption(label: 'All Faculties', value: ''),
+                  ...depts.map((d) => DropdownOption(label: d.name, value: d.id.toString(), colorHex: d.color)),
+                ],
+                value: _deptId,
                 onChanged: (v) => setState(() => _deptId = v),
-                placeholder: 'Select Faculty',
+                placeholder: 'All Faculties',
               ),
               const SizedBox(height: 10),
               _InputBox(controller: _tags, hint: 'Tags (e.g. MTH201, exams)'),
@@ -410,7 +412,7 @@ class _CreatePollSheetState extends ConsumerState<_CreatePollSheet> {
     setState(() => _busy = true);
     try {
       final api = ref.read(apiClientProvider);
-      final chosenDept = _deptId.isNotEmpty ? int.tryParse(_deptId) : (depts.isNotEmpty ? depts.first.id : null);
+      final chosenDept = _deptId.isNotEmpty ? int.tryParse(_deptId) : null;
       final res = await api.dio.post('/questions/', data: {
         'title': q,
         'body': q,
@@ -491,10 +493,13 @@ class _CreatePollSheetState extends ConsumerState<_CreatePollSheet> {
                 ),
               const SizedBox(height: 8),
               FacultyDropdown(
-                options: depts.map((d) => DropdownOption(label: d.name, value: d.id.toString(), colorHex: d.color)).toList(),
-                value: _deptId.isNotEmpty ? _deptId : (depts.isNotEmpty ? depts.first.id.toString() : ''),
+                options: [
+                  const DropdownOption(label: 'All Faculties', value: ''),
+                  ...depts.map((d) => DropdownOption(label: d.name, value: d.id.toString(), colorHex: d.color)),
+                ],
+                value: _deptId,
                 onChanged: (v) => setState(() => _deptId = v),
-                placeholder: 'Select Faculty',
+                placeholder: 'All Faculties',
               ),
               const SizedBox(height: 16),
               LiquidTap(

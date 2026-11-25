@@ -236,7 +236,7 @@ class BrowsingAndFolders(Base):
         d = self.c.get("/api/library/catalog/").json()
         names = {f["name"]: sorted(x["name"] for x in f["departments"]) for f in d["faculties"]}
         self.assertEqual(names, {"Sciences": ["Biochemistry", "Physics"], "Engineering": ["Mechanical"]})
-        self.assertEqual(d["levels"], [100, 200, 300, 400, 500, 600])
+        self.assertEqual(d["levels"], [100, 200, 300, 400, 500])
 
     def test_browsing_can_be_made_login_only(self):
         guest = APIClient()

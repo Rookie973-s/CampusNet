@@ -289,7 +289,13 @@ class PollVote(models.Model):
 
 
 def question_media_path(instance, filename):
-    ext = {"image": ".img", "video": ".mp4"}.get(instance.kind, ".bin")
+    if instance.kind == "image":
+        raw_ext = (filename.rsplit(".", 1)[-1].lower() if "." in (filename or "") else "")
+        ext = f".{raw_ext}" if raw_ext in ("jpg", "jpeg", "png", "webp", "gif") else ".jpg"
+    elif instance.kind == "video":
+        ext = ".mp4"
+    else:
+        ext = ".bin"
     return f"questions/{timezone.now():%Y/%m}/{uuid.uuid4().hex}{ext}"
 
 

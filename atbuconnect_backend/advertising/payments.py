@@ -28,34 +28,73 @@ logger = logging.getLogger(__name__)
 VERIFICATION_FEE_NGN = Decimal("1500.00")
 MAX_AD_PRICE_NGN = Decimal("5000.00")
 MAX_AD_PRICE_KOBO = 500000
-MIN_AD_PRICE_NGN = Decimal("500.00")
+MIN_AD_PRICE_NGN = Decimal("900.00")
 
 
-def calculate_ad_price(start_date, end_date, targeting=None, placements=None) -> dict:
-    """Server-authoritative ad pricing calculator. Strictly capped at NGN 5,000 (500,000 kobo)."""
+def compute_estimated_reach(targeting=None) -> int:
+    """Real database reach: users in selected faculties PLUS unverified/unassigned users
+    who will also receive the ad (since serve() delivers to department__isnull=True)."""
+    from django.contrib.auth import get_user_model
+    from django.db.models import Q
+
+    User = get_user_model()
+    qs = User.objects.filter(is_active=True)
+    facs = []
+    if isinstance(targeting, dict):
+        raw_facs = targeting.get("faculties") or []
+        if isinstance(raw_facs, list):
+            facs = [str(f).strip() for f in raw_facs if str(f).strip()]
+        elif isinstance(raw_facs, str) and raw_facs.strip():
+            facs = [raw_facs.strip()]
+    if facs:
+        qs = qs.filter(Q(department__name__in=facs) | Q(department__isnull=True))
+    return qs.count()
+
+
+def calculate_ad_price(start_date, end_date, targeting=None, placements=None, estimated_reach=None) -> dict:
+    """Non-negotiable server-authoritative ad pricing strictly between ₦900 and ₦5,000,
+    driven directly by Estimated Reach, Placements count, and Duration."""
     targeting = targeting or {}
     placements = placements or ["feed"]
     days = max(1, (end_date - start_date).days + 1) if (start_date and end_date) else 1
+    reach = int(estimated_reach) if estimated_reach is not None else compute_estimated_reach(targeting)
 
-    base = Decimal("500.00")
-    duration_cost = Decimal(days) * Decimal("250.00")
+    # Non-negotiable formula:
+    # Base ₦550 + ₦150/day + ₦150/placement + reach tier (₦50..₦1,200)
+    # 1 day + 1 placement + small reach = 550 + 150 + 150 + 50 = ₦900 minimum!
+    base = Decimal("550.00")
+    duration_cost = Decimal(days) * Decimal("150.00")
+    placement_count = max(1, len(placements))
+    placement_cost = Decimal(placement_count) * Decimal("150.00")
+
     audience = targeting.get("audience", "all") if isinstance(targeting, dict) else "all"
-    audience_cost = Decimal("800.00") if audience == "all" else Decimal("350.00")
-    extra_placements = max(0, len(placements) - 1)
-    placement_cost = Decimal(extra_placements) * Decimal("250.00")
+    facs = targeting.get("faculties") if isinstance(targeting, dict) else None
+    if reach <= 25 and facs:
+        reach_cost = Decimal("50.00")
+    elif reach <= 100 and facs:
+        reach_cost = Decimal("200.00")
+    elif reach <= 300 and facs:
+        reach_cost = Decimal("450.00")
+    elif audience == "all" or not facs:
+        reach_cost = min(Decimal("1200.00"), Decimal("400.00") + Decimal(reach) * Decimal("2.00"))
+    else:
+        reach_cost = min(Decimal("900.00"), Decimal("250.00") + Decimal(reach) * Decimal("1.50"))
 
-    raw_total = base + duration_cost + audience_cost + placement_cost
+    raw_total = base + duration_cost + placement_cost + reach_cost
     capped_total = min(MAX_AD_PRICE_NGN, max(MIN_AD_PRICE_NGN, raw_total))
     return {
         "amount_ngn": str(capped_total.quantize(Decimal("0.01"))),
         "amount_num": float(capped_total),
+        "min_ngn": float(MIN_AD_PRICE_NGN),
         "max_ngn": float(MAX_AD_PRICE_NGN),
+        "max_price_ngn": float(MAX_AD_PRICE_NGN),
+        "estimated_reach": reach,
         "days": days,
         "capped": raw_total > MAX_AD_PRICE_NGN,
         "breakdown": {
             "base": float(base),
             "duration": float(duration_cost),
-            "audience": float(audience_cost),
+            "audience": float(reach_cost),
             "placements": float(placement_cost),
         },
     }

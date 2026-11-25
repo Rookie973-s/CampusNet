@@ -24,6 +24,8 @@ class FeedState {
     this.ads = const [],
     this.filter = 'Trending',
     this.topic = 'All',
+    this.discovery = '',
+    this.discoveryLabel = '',
     this.loading = true,
     this.newPostsCount = 0,
     this.error,
@@ -33,6 +35,8 @@ class FeedState {
   final List<ServedAd> ads;
   final String filter;
   final String topic;
+  final String discovery;
+  final String discoveryLabel;
   final bool loading;
   final int newPostsCount;
   final String? error;
@@ -42,6 +46,8 @@ class FeedState {
     List<ServedAd>? ads,
     String? filter,
     String? topic,
+    String? discovery,
+    String? discoveryLabel,
     bool? loading,
     int? newPostsCount,
     String? error,
@@ -51,6 +57,8 @@ class FeedState {
         ads: ads ?? this.ads,
         filter: filter ?? this.filter,
         topic: topic ?? this.topic,
+        discovery: discovery ?? this.discovery,
+        discoveryLabel: discoveryLabel ?? this.discoveryLabel,
         loading: loading ?? this.loading,
         newPostsCount: newPostsCount ?? this.newPostsCount,
         error: error,
@@ -92,10 +100,26 @@ class FeedNotifier extends StateNotifier<FeedState> {
     } catch (_) {}
   }
 
-  Future<void> load({String? filter, String? topic}) async {
+  Future<void> load({
+    String? filter,
+    String? topic,
+    String? discovery,
+    String? discoveryLabel,
+    bool clearDiscovery = false,
+  }) async {
     final nextFilter = filter ?? state.filter;
     final nextTopic = topic ?? state.topic;
-    state = state.copyWith(filter: nextFilter, topic: nextTopic, loading: true, newPostsCount: 0, error: null);
+    final nextDiscovery = clearDiscovery ? '' : (discovery ?? state.discovery);
+    final nextDiscoveryLabel = clearDiscovery ? '' : (discoveryLabel ?? discovery ?? state.discoveryLabel);
+    state = state.copyWith(
+      filter: nextFilter,
+      topic: nextTopic,
+      discovery: nextDiscovery,
+      discoveryLabel: nextDiscoveryLabel,
+      loading: true,
+      newPostsCount: 0,
+      error: null,
+    );
 
     const orderMap = {
       'Trending': 'trending',
@@ -107,6 +131,7 @@ class FeedNotifier extends StateNotifier<FeedState> {
     try {
       final params = <String, dynamic>{'ordering': orderMap[nextFilter] ?? 'trending'};
       if (nextTopic != 'All') params['topic'] = nextTopic;
+      if (nextDiscovery.isNotEmpty) params['discovery'] = nextDiscovery;
       final newestParams = <String, dynamic>{'ordering': 'newest'};
       if (nextTopic != 'All') newestParams['topic'] = nextTopic;
 
@@ -153,6 +178,12 @@ class FeedNotifier extends StateNotifier<FeedState> {
   void prependQuestion(QuestionItem q) {
     if (q.id > _latestKnownId) _latestKnownId = q.id;
     state = state.copyWith(items: [q, ...state.items.where((x) => x.id != q.id)], newPostsCount: 0);
+  }
+
+  Future<void> editPost(QuestionItem q, {required String title, required String body}) async {
+    final res = await _api.dio.patch('/questions/${q.id}/', data: {'title': title, 'body': body});
+    final updated = QuestionItem.fromJson(Map<String, dynamic>.from(res.data as Map));
+    _replace(updated);
   }
 
   Future<void> toggleVote(QuestionItem q, String dir) async {
@@ -275,6 +306,35 @@ class FeedScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Active Trending Now topic banner (when user taps a Trending topic in drawer)
+                      if (feed.discovery.isNotEmpty) ...[
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+                          decoration: BoxDecoration(
+                            color: c.accentSoft,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.trending_up_rounded, size: 17, color: c.accent),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Trending: ${feed.discoveryLabel.isNotEmpty ? feed.discoveryLabel : feed.discovery}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(color: c.accent, fontWeight: FontWeight.w800, fontSize: 13),
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () => ref.read(feedProvider.notifier).load(clearDiscovery: true),
+                                child: Icon(Icons.close_rounded, size: 18, color: c.accent),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       // Clean FacultyDropdown ONLY (no duplicate search icon!)
                       FacultyDropdown(
                         options: facultyOpts,
@@ -643,8 +703,66 @@ class PostTile extends ConsumerWidget {
     );
   }
 
+  void _openEditModal(BuildContext context, WidgetRef ref) {
+    final titleCtrl = TextEditingController(text: q.title);
+    final bodyCtrl = TextEditingController(text: q.body);
+    bool busy = false;
+    AppBottomSheet.show(
+      context,
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (ctx, setS) => Padding(
+          padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.viewInsetsOf(ctx).bottom + 24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Edit Post', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: ctx.cn.textPrimary)),
+                const SizedBox(height: 12),
+                TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Headline')),
+                const SizedBox(height: 10),
+                TextField(controller: bodyCtrl, maxLines: 5, decoration: const InputDecoration(labelText: 'Post Content')),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: busy
+                        ? null
+                        : () async {
+                            final t = titleCtrl.text.trim();
+                            final b = bodyCtrl.text.trim();
+                            if (t.isEmpty || b.isEmpty) return;
+                            setS(() => busy = true);
+                            try {
+                              await ref.read(feedProvider.notifier).editPost(q, title: t, body: b);
+                              if (ctx.mounted) Navigator.of(ctx, rootNavigator: true).pop();
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Post updated!')));
+                              }
+                            } catch (e) {
+                              setS(() => busy = false);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(parseApiError(e))));
+                              }
+                            }
+                          },
+                    child: Text(busy ? 'Saving...' : 'Save Changes'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _openThreeDotMenu(BuildContext context, WidgetRef ref) {
     final c = context.cn;
+    final currentUser = ref.read(authProvider).user;
+    final canEdit = q.canEdit ||
+        (isAuthor && ((currentUser?.isVerifiedStudent ?? false) || (currentUser?.isVerifiedStaff ?? false)));
+
     AppBottomSheet.show(
       context,
       builder: (ctx) => SafeArea(
@@ -655,6 +773,16 @@ class PostTile extends ConsumerWidget {
             children: [
               Container(width: 38, height: 4, decoration: BoxDecoration(color: c.divider, borderRadius: BorderRadius.circular(99))),
               const SizedBox(height: 10),
+              if (canEdit)
+                ListTile(
+                  leading: Icon(Icons.edit_outlined, color: c.success),
+                  title: Text('Edit Post', style: TextStyle(fontWeight: FontWeight.w800, color: c.textPrimary)),
+                  subtitle: Text('Verified Student & SUG benefit', style: TextStyle(fontSize: 11.5, color: c.textSecondary)),
+                  onTap: () {
+                    Navigator.of(ctx, rootNavigator: true).pop();
+                    _openEditModal(context, ref);
+                  },
+                ),
               if (isAuthor)
                 ListTile(
                   leading: Icon(Icons.bar_chart_rounded, color: c.accent),

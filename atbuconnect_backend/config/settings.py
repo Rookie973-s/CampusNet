@@ -236,18 +236,24 @@ LIBRARY_REQUIRE_LOGIN_TO_DOWNLOAD = env.bool("LIBRARY_REQUIRE_LOGIN_TO_DOWNLOAD"
 # ── Google sign-in (inactive until a client id is set; needs `pip install google-auth`) ──
 GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", default="")
 
-# ── Optional S3-compatible storage for post images/videos ─────────────────────
-# Off by default. Needs `pip install django-storages boto3` and AWS_* / bucket env vars.
-# NOT verified here (no bucket available) - test on staging before relying on it.
+# ── Persistent S3 / Cloudflare R2 storage for images, avatars, ads & PDFs ─────
 if env.bool("USE_S3_MEDIA", default=False):  # pragma: no cover
     INSTALLED_APPS += ["storages"]
     STORAGES = {
         "default": {"BACKEND": "storages.backends.s3.S3Storage"},
-        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
     }
-    AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME")
-    AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME", default=None)
+    AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID", default="")
+    AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY", default="")
+    AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME", default="")
+    AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME", default="auto")
     AWS_S3_ENDPOINT_URL = env("AWS_S3_ENDPOINT_URL", default=None)
+    AWS_S3_CUSTOM_DOMAIN = env("AWS_S3_CUSTOM_DOMAIN", default=None)
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = env.bool("AWS_QUERYSTRING_AUTH", default=False)
+    AWS_S3_SIGNATURE_VERSION = "s3v4"
+    if not LIBRARY_STORAGE:
+        LIBRARY_STORAGE = "storages.backends.s3.S3Storage"
     AWS_DEFAULT_ACL = None
     AWS_QUERYSTRING_AUTH = False
 
