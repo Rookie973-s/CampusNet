@@ -82,14 +82,15 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cn = context.cn;
     final me = ref.watch(authProvider.select((s) => s.user));
 
     if (_activeId != null) {
       return Scaffold(
-        backgroundColor: CNColors.bg,
+        backgroundColor: cn.bg,
         appBar: AppBar(
-          leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => setState(() => _activeId = null)),
-          title: const Text('SUG Chat', style: TextStyle(fontWeight: FontWeight.w800)),
+          leading: IconButton(icon: Icon(Icons.arrow_back, color: cn.textPrimary), onPressed: () => setState(() => _activeId = null)),
+          title: Text('SUG Chat', style: TextStyle(fontWeight: FontWeight.w800, color: cn.textPrimary)),
         ),
         body: Column(
           children: [
@@ -106,24 +107,35 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
-                        color: mine ? CNColors.accent : CNColors.surfaceHigh,
+                        color: mine ? cn.accent : cn.surfaceHigh,
                         borderRadius: BorderRadius.circular(18),
                       ),
-                      child: Text((m['body'] ?? m['text'] ?? '').toString(), style: const TextStyle(color: Colors.white)),
+                      child: Text(
+                        (m['body'] ?? m['text'] ?? '').toString(),
+                        style: TextStyle(color: mine ? Colors.white : cn.textPrimary),
+                      ),
                     ),
                   );
                 },
               ),
             ),
             Container(
-              color: CNColors.surface,
+              color: cn.surface,
               padding: EdgeInsets.fromLTRB(12, 8, 12, MediaQuery.of(context).padding.bottom + 10),
               child: Row(
                 children: [
                   Expanded(
                     child: TextField(
                       controller: _ctrl,
-                      decoration: const InputDecoration(hintText: 'Write a message...', border: InputBorder.none),
+                      style: TextStyle(color: cn.textPrimary),
+                      decoration: InputDecoration(
+                        hintText: 'Write a message...',
+                        hintStyle: TextStyle(color: cn.textFaint),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        filled: false,
+                      ),
                     ),
                   ),
                   LiquidTap(
@@ -131,7 +143,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                     child: Container(
                       width: 42,
                       height: 42,
-                      decoration: BoxDecoration(color: CNColors.accent, borderRadius: BorderRadius.circular(14)),
+                      decoration: BoxDecoration(color: cn.accent, borderRadius: BorderRadius.circular(14)),
                       child: const Icon(Icons.send_rounded, color: Colors.white, size: 19),
                     ),
                   ),
@@ -144,12 +156,12 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
     }
 
     return Scaffold(
-      backgroundColor: CNColors.bg,
-      appBar: AppBar(title: const Text('SUG Chats', style: TextStyle(fontWeight: FontWeight.w800))),
+      backgroundColor: cn.bg,
+      appBar: AppBar(title: Text('SUG Chats', style: TextStyle(fontWeight: FontWeight.w800, color: cn.textPrimary))),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _convos.isEmpty
-              ? const Center(child: Text('No conversations yet.', style: TextStyle(color: CNColors.textMuted)))
+              ? Center(child: Text('No conversations yet.', style: TextStyle(color: cn.textMuted)))
               : ListView.separated(
                   padding: const EdgeInsets.all(14),
                   itemCount: _convos.length,
@@ -173,17 +185,20 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text((peer['name'] ?? peer['username'] ?? 'SUG Official').toString(), style: const TextStyle(fontWeight: FontWeight.w800)),
+                                  Text(
+                                    (peer['name'] ?? peer['username'] ?? 'SUG Official').toString(),
+                                    style: TextStyle(fontWeight: FontWeight.w800, color: cn.textPrimary),
+                                  ),
                                   Text(
                                     (c['last_message'] is Map ? c['last_message']['body'] : c['last_message'] ?? 'Tap to chat').toString(),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(color: CNColors.textMuted, fontSize: 12.5),
+                                    style: TextStyle(color: cn.textMuted, fontSize: 12.5),
                                   ),
                                 ],
                               ),
                             ),
-                            const Icon(Icons.chevron_right_rounded, color: CNColors.textFaint),
+                            Icon(Icons.chevron_right_rounded, color: cn.textFaint),
                           ],
                         ),
                       ),

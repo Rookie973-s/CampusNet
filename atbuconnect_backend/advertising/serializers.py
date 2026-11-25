@@ -128,8 +128,10 @@ class CampaignSerializer(serializers.ModelSerializer):
                 placements=attrs.get("placements", getattr(self.instance, "placements", ["feed"])),
             )
             attrs["total_budget"] = min(Decimal(est["amount_ngn"]), MAX_AD_PRICE_NGN)
-        elif budget is not None and budget > Decimal("4000.00") and not is_admin:
-            attrs["total_budget"] = Decimal("4000.00")
+        elif budget is not None and budget > Decimal("5000.00") and not is_admin:
+            raise serializers.ValidationError({
+                "total_budget": "Maximum campaign price cannot exceed ₦5,000."
+            })
 
         daily = attrs.get("daily_budget", getattr(self.instance, "daily_budget", None))
         if daily is not None and daily <= 0:

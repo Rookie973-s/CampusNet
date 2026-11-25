@@ -40,7 +40,7 @@ class CampaignViewSet(viewsets.ModelViewSet):
     throttle_classes = [ScopedRateThrottle]
 
     def get_permissions(self):
-        if self.action in ("serve", "impression", "click"):
+        if self.action in ("serve", "impression", "click", "quote"):
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
@@ -296,11 +296,42 @@ class CampaignViewSet(viewsets.ModelViewSet):
             "pricing_configured": bool(getattr(settings, "AD_CPC_RATE", None) or getattr(settings, "AD_CPM_RATE", None)),
         })
 
+    @action(detail=False, methods=["post"])
+    def quote(self, request):
+        """POST /api/ads/quote/ — server-authoritative pricing (strictly capped at ₦5,000)."""
+        from django.contrib.auth import get_user_model
+        from datetime import date as _date
+
+        User = get_user_model()
+        raw_start = request.data.get("start_date")
+        raw_end = request.data.get("end_date")
+        try:
+            start_d = _date.fromisoformat(str(raw_start)) if raw_start else timezone.localdate()
+            end_d = _date.fromisoformat(str(raw_end)) if raw_end else start_d + timedelta(days=7)
+        except ValueError:
+            return Response({"detail": "Invalid start_date or end_date format (YYYY-MM-DD)."}, status=400)
+        if end_d < start_d:
+            return Response({"detail": "end_date cannot be earlier than start_date."}, status=400)
+
+        targeting = request.data.get("targeting") or {}
+        placements = request.data.get("placements") or ["feed"]
+        est = calculate_ad_price(start_d, end_d, targeting=targeting, placements=placements)
+
+        # Compute real eligible student reach from database
+        qs_users = User.objects.filter(is_active=True)
+        facs = targeting.get("faculties") if isinstance(targeting, dict) else None
+        if facs:
+            qs_users = qs_users.filter(department__name__in=facs)
+        est["estimated_reach"] = qs_users.count()
+        est["amount_kobo"] = int(Decimal(est["amount_ngn"]) * 100)
+        return Response(est)
+
     @action(detail=False, methods=["get"])
     def serve(self, request):
-        """Return currently eligible active campaigns for feed/comment placement.
+        """Return currently eligible active campaigns with weighted multi-advertiser rotation.
 
-        Respects verified students' ad-free preference!
+        Fixes single-ad replacement: orders by least impressions first so multiple active
+        campaigns from different advertisers rotate fairly instead of only showing the newest ad.
         """
         u = request.user
         if u and u.is_authenticated and get_entitlements(u)["hide_ads"]:
@@ -308,26 +339,37 @@ class CampaignViewSet(viewsets.ModelViewSet):
 
         placement = (request.query_params.get("placement") or "feed").strip().lower()
         today = timezone.localdate()
-        qs = Campaign.objects.filter(
-            status=Campaign.Status.ACTIVE,
-            start_date__lte=today,
-            end_date__gte=today,
-        ).order_by("-created_at")
+        user_dept = getattr(getattr(u, "department", None), "name", None) if (u and u.is_authenticated) else None
+
+        qs = (
+            Campaign.objects.filter(
+                status=Campaign.Status.ACTIVE,
+                start_date__lte=today,
+                end_date__gte=today,
+            )
+            .annotate(imp_total=Count("impressions", distinct=True))
+            .order_by("imp_total", "-created_at")
+        )
 
         eligible = []
         fallback = []
         for c in qs:
             if not c.is_eligible_to_serve(today):
                 continue
+            # Audience faculty targeting check
+            tgt = c.targeting if isinstance(c.targeting, dict) else {}
+            facs = tgt.get("faculties") or []
+            if facs and user_dept and user_dept not in facs:
+                continue
             pl = [str(p).lower() for p in (c.placements or [])]
             if not pl or placement in pl or "all" in pl:
                 eligible.append(c)
-            elif placement == "library" and "feed" in pl:
+            elif placement in ("library", "communities", "comments") and "feed" in pl:
                 fallback.append(c)
-            if len(eligible) >= 5:
+            if len(eligible) >= 10:
                 break
         if not eligible and fallback:
-            eligible = fallback[:3]
+            eligible = fallback[:6]
 
         return Response(ServedAdSerializer(eligible, many=True, context={"request": request}).data)
 
@@ -338,8 +380,10 @@ class CampaignViewSet(viewsets.ModelViewSet):
         camp = self.get_object()
         if not camp.is_eligible_to_serve():
             return Response({"recorded": False})
-        ip_h = hash_ip(request)
         u = request.user if request.user.is_authenticated else None
+        if u and camp.advertiser_id == u.pk:
+            return Response({"recorded": False, "reason": "self_impression"})
+        ip_h = hash_ip(request)
         since = timezone.now() - timedelta(minutes=30)
         dup = AdImpression.objects.filter(campaign=camp, created_at__gte=since)
         dup = dup.filter(user=u) if u else dup.filter(ip_hash=ip_h)
@@ -356,9 +400,11 @@ class CampaignViewSet(viewsets.ModelViewSet):
         camp = self.get_object()
         if not camp.is_eligible_to_serve():
             return Response({"recorded": False})
-        ip_h = hash_ip(request)
         u = request.user if request.user.is_authenticated else None
-        since = timezone.now() - timedelta(minutes=5)
+        if u and camp.advertiser_id == u.pk:
+            return Response({"recorded": False, "reason": "self_click"})
+        ip_h = hash_ip(request)
+        since = timezone.now() - timedelta(seconds=10)
         dup = AdClick.objects.filter(campaign=camp, created_at__gte=since)
         dup = dup.filter(user=u) if u else dup.filter(ip_hash=ip_h)
         if dup.exists():

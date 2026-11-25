@@ -213,7 +213,7 @@ export default function AdsPage({ user, onLogin, toast }) {
     const duration = days * 250;
     const audience = wiz.audienceType === "broad" ? 800 : 350;
     const placements = Math.max(0, (wiz.placements?.length || 1) - 1) * 250;
-    return Math.min(4000, Math.max(500, base + duration + audience + placements));
+    return Math.min(5000, Math.max(500, base + duration + audience + placements));
   };
   const estimatedPrice = computeEstimatedBudget();
 
@@ -262,10 +262,10 @@ export default function AdsPage({ user, onLogin, toast }) {
               <Ic n="info" s={18} c="var(--accent)" />
               <div style={{ fontSize: 13.5 }}>
                 <strong>Paystack Bank Transfer (Dedicated Virtual Accounts):</strong>{" "}
-                <span style={{ color: "var(--mut)" }}>Ad pricing is calculated automatically from audience, placements &amp; days — capped at ₦4,000 max.</span>
+                <span style={{ color: "var(--mut)" }}>Ad pricing is calculated automatically from audience, placements &amp; days — capped at ₦5,000 max.</span>
               </div>
             </div>
-            <span className="badge-promo">Max ₦4,000 / Ad</span>
+            <span className="badge-promo">Max ₦5,000 / Ad</span>
           </div>
 
           {loading ? (
@@ -546,7 +546,7 @@ export default function AdsPage({ user, onLogin, toast }) {
                 <div>
                   <span style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", color: "var(--faint)" }}>Calculated Campaign Price</span>
                   <strong style={{ display: "block", fontSize: 28, fontFamily: "'DM Sans',sans-serif" }}>₦{estimatedPrice.toLocaleString()}</strong>
-                  <small style={{ color: "var(--mut)" }}>Based on audience, placements &amp; schedule · Strictly capped at ₦4,000</small>
+                  <small style={{ color: "var(--mut)" }}>Based on audience, placements &amp; schedule · Strictly capped at ₦5,000</small>
                 </div>
                 <span className="badge-promo">Paystack Bank Transfer</span>
               </div>

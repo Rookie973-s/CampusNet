@@ -74,6 +74,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String username,
     required String email,
     required String password,
+    required String confirmPassword,
   }) async {
     final res = await _api.dio.post('/auth/register/', data: {
       'first_name': firstName,
@@ -81,6 +82,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       'username': username,
       'email': email,
       'password': password,
+      'confirm_password': confirmPassword,
     });
     final data = Map<String, dynamic>.from(res.data as Map);
     await _api.tokens.saveTokens(
@@ -93,6 +95,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   void updateUser(CNUser updated) {
     state = state.copyWith(user: updated);
+  }
+
+  Future<void> refreshMe() async {
+    try {
+      final res = await _api.dio.get('/auth/me/');
+      final u = CNUser.fromJson(Map<String, dynamic>.from(res.data as Map));
+      state = state.copyWith(user: u);
+    } catch (_) {}
   }
 
   Future<void> logout() async {

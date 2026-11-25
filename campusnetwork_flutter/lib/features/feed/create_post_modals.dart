@@ -14,6 +14,7 @@ import 'feed_screen.dart';
 Future<void> showAskNetworkModal(BuildContext context) {
   return showModalBottomSheet(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (_) => const _AskNetworkSheet(),
@@ -23,10 +24,31 @@ Future<void> showAskNetworkModal(BuildContext context) {
 Future<void> showCreatePollModal(BuildContext context) {
   return showModalBottomSheet(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (_) => const _CreatePollSheet(),
   );
+}
+
+/// Subtle jotter-notebook ruled lines background for the post composer (POST ref).
+class _JotterLinesPainter extends CustomPainter {
+  _JotterLinesPainter({required this.lineColor});
+  final Color lineColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = lineColor
+      ..strokeWidth = 0.8;
+    const step = 26.0;
+    for (double y = step; y < size.height; y += step) {
+      canvas.drawLine(Offset(10, y), Offset(size.width - 10, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _JotterLinesPainter old) => old.lineColor != lineColor;
 }
 
 class _AskNetworkSheet extends ConsumerStatefulWidget {
@@ -100,7 +122,9 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
 
   Future<void> _submit(List<DepartmentItem> depts, int wordLimit) async {
     final cleanBody = _body.text.trim();
-    final cleanTitle = _title.text.trim().isNotEmpty ? _title.text.trim() : (cleanBody.length > 70 ? cleanBody.substring(0, 70) : cleanBody);
+    final cleanTitle = _title.text.trim().isNotEmpty
+        ? _title.text.trim()
+        : (cleanBody.length > 70 ? cleanBody.substring(0, 70) : cleanBody);
     if (cleanTitle.isEmpty) return;
     if (_words > wordLimit) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exceeds your $wordLimit-word limit.')));
@@ -143,6 +167,7 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final cn = context.cn;
     final user = ref.watch(authProvider.select((s) => s.user));
     final depts = ref.watch(departmentsProvider).valueOrNull ?? const <DepartmentItem>[];
     final isVerified = (user?.isVerifiedStudent ?? false) || (user?.isVerifiedStaff ?? false);
@@ -152,59 +177,92 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.9),
-        decoration: const BoxDecoration(
-          color: CNColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          border: Border(top: BorderSide(color: CNColors.borderBright)),
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.92),
+        decoration: BoxDecoration(
+          color: cn.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border(top: BorderSide(color: cn.borderBright)),
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 26),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(color: cn.borderBright, borderRadius: BorderRadius.circular(99)),
+                ),
+              ),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
                     width: 44,
                     height: 44,
-                    decoration: BoxDecoration(color: const Color(0xFF14223B), borderRadius: BorderRadius.circular(14)),
-                    child: const Icon(Icons.menu_book_rounded, color: CNColors.accentLight, size: 22),
+                    decoration: BoxDecoration(color: cn.accentSoft, borderRadius: BorderRadius.circular(14)),
+                    child: Icon(Icons.menu_book_rounded, color: cn.accentLight, size: 22),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Ask the Network', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+                        Text('Ask the Network', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: cn.textPrimary)),
                         Text(
                           'Write your question. Add photos or a short video if it helps. (Limit: $wordLimit words)',
-                          style: const TextStyle(color: CNColors.textMuted, fontSize: 12.5, height: 1.4),
+                          style: TextStyle(color: cn.textMuted, fontSize: 12.5, height: 1.4),
                         ),
                       ],
                     ),
                   ),
-                  IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => Navigator.of(context).pop()),
+                  IconButton(icon: Icon(Icons.close_rounded, color: cn.textMuted), onPressed: () => Navigator.of(context).pop()),
                 ],
               ),
               const SizedBox(height: 16),
-              const Text('Headline (optional)', style: TextStyle(color: CNColors.textMuted, fontWeight: FontWeight.w700, fontSize: 12.5)),
+              Text('Headline (optional)', style: TextStyle(color: cn.textMuted, fontWeight: FontWeight.w700, fontSize: 12.5)),
               const SizedBox(height: 6),
               _InputBox(controller: _title, hint: 'Short summary of your question or post...'),
               const SizedBox(height: 12),
-              const Text('Your question', style: TextStyle(color: CNColors.textMuted, fontWeight: FontWeight.w700, fontSize: 12.5)),
+              Text('Your question', style: TextStyle(color: cn.textMuted, fontWeight: FontWeight.w700, fontSize: 12.5)),
               const SizedBox(height: 6),
-              _InputBox(
-                controller: _body,
-                hint: 'Write your post... Use Bold, Italic, Underline, or @mention classmates',
-                maxLines: 5,
-                onChanged: (_) => setState(() {}),
+              // Subtle jotter-lined writing area
+              Container(
+                decoration: BoxDecoration(
+                  color: cn.surfaceRecessed,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: cn.borderSubtle),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: CustomPaint(
+                  painter: _JotterLinesPainter(
+                    lineColor: cn.borderSubtle.withValues(alpha: context.isDark ? 0.45 : 0.65),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    child: TextField(
+                      controller: _body,
+                      maxLines: 6,
+                      onChanged: (_) => setState(() {}),
+                      style: TextStyle(fontSize: 15, height: 1.72, color: cn.textPrimary),
+                      decoration: InputDecoration(
+                        hintText: 'Write your post... Use Bold, Italic, Underline, or @mention classmates',
+                        hintStyle: TextStyle(color: cn.textFaint, fontSize: 13.5),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        filled: false,
+                      ),
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(color: CNColors.surfaceRecessed, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: cn.surfaceRecessed, borderRadius: BorderRadius.circular(12)),
                 child: Row(
                   children: [
                     _FmtBtn(label: 'B', bold: true, onTap: () => _insert(' **bold** ')),
@@ -216,7 +274,7 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
                     Text(
                       '$_words/$wordLimit words',
                       style: TextStyle(
-                        color: _words > wordLimit ? CNColors.danger : CNColors.textFaint,
+                        color: _words > wordLimit ? cn.danger : cn.textFaint,
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
@@ -233,12 +291,15 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 11),
                         decoration: BoxDecoration(
-                          color: CNColors.surfaceHigh,
+                          color: cn.surfaceHigh,
                           borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: CNColors.borderSubtle),
+                          border: Border.all(color: cn.borderSubtle),
                         ),
                         alignment: Alignment.center,
-                        child: Text('Add photos ${_images.length}/$maxImages', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                        child: Text(
+                          'Add photos ${_images.length}/$maxImages',
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: cn.textPrimary),
+                        ),
                       ),
                     ),
                   ),
@@ -249,14 +310,14 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 11),
                         decoration: BoxDecoration(
-                          color: CNColors.surfaceHigh,
+                          color: cn.surfaceHigh,
                           borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: CNColors.borderSubtle),
+                          border: Border.all(color: cn.borderSubtle),
                         ),
                         alignment: Alignment.center,
                         child: Text(
                           _video != null ? 'Video Ready ✓' : (isVerified ? 'Add video' : 'Video (Verified)'),
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: cn.textPrimary),
                         ),
                       ),
                     ),
@@ -280,12 +341,9 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
                       onTap: () => Navigator.of(context).pop(),
                       child: Container(
                         height: 48,
-                        decoration: BoxDecoration(
-                          color: CNColors.surfaceHigh,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
+                        decoration: BoxDecoration(color: cn.surfaceHigh, borderRadius: BorderRadius.circular(999)),
                         alignment: Alignment.center,
-                        child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w700)),
+                        child: Text('Cancel', style: TextStyle(fontWeight: FontWeight.w700, color: cn.textPrimary)),
                       ),
                     ),
                   ),
@@ -295,12 +353,12 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
                       onTap: _busy ? null : () => _submit(depts, wordLimit),
                       child: Container(
                         height: 48,
-                        decoration: BoxDecoration(
-                          color: CNColors.accent,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
+                        decoration: BoxDecoration(color: cn.accent, borderRadius: BorderRadius.circular(999)),
                         alignment: Alignment.center,
-                        child: Text(_busy ? 'Posting...' : 'Post', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                        child: Text(
+                          _busy ? 'Posting...' : 'Post',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                        ),
                       ),
                     ),
                   ),
@@ -374,33 +432,42 @@ class _CreatePollSheetState extends ConsumerState<_CreatePollSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final cn = context.cn;
     final depts = ref.watch(departmentsProvider).valueOrNull ?? const <DepartmentItem>[];
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
-        decoration: const BoxDecoration(
-          color: CNColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          border: Border(top: BorderSide(color: CNColors.borderBright)),
+        decoration: BoxDecoration(
+          color: cn.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border(top: BorderSide(color: cn.borderBright)),
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 26),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(color: cn.borderBright, borderRadius: BorderRadius.circular(99)),
+                ),
+              ),
               Row(
                 children: [
-                  const Icon(Icons.bar_chart_rounded, color: CNColors.accentLight, size: 24),
+                  Icon(Icons.bar_chart_rounded, color: cn.accentLight, size: 24),
                   const SizedBox(width: 10),
-                  const Expanded(child: Text('Create a Poll', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900))),
-                  IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => Navigator.of(context).pop()),
+                  Expanded(child: Text('Create a Poll', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: cn.textPrimary))),
+                  IconButton(icon: Icon(Icons.close_rounded, color: cn.textMuted), onPressed: () => Navigator.of(context).pop()),
                 ],
               ),
               const SizedBox(height: 12),
               _InputBox(controller: _question, hint: 'e.g. Should we write tests today?'),
               const SizedBox(height: 12),
-              const Text('Poll Options (2–6)', style: TextStyle(color: CNColors.textMuted, fontWeight: FontWeight.w700, fontSize: 12.5)),
+              Text('Poll Options (2–6)', style: TextStyle(color: cn.textMuted, fontWeight: FontWeight.w700, fontSize: 12.5)),
               const SizedBox(height: 6),
               for (int i = 0; i < _opts.length; i++)
                 Padding(
@@ -410,7 +477,7 @@ class _CreatePollSheetState extends ConsumerState<_CreatePollSheet> {
                       Expanded(child: _InputBox(controller: _opts[i], hint: 'Option ${i + 1}')),
                       if (_opts.length > 2)
                         IconButton(
-                          icon: const Icon(Icons.delete_outline_rounded, color: CNColors.danger, size: 20),
+                          icon: Icon(Icons.delete_outline_rounded, color: cn.danger, size: 20),
                           onPressed: () => setState(() => _opts.removeAt(i).dispose()),
                         ),
                     ],
@@ -435,9 +502,12 @@ class _CreatePollSheetState extends ConsumerState<_CreatePollSheet> {
                 child: Container(
                   width: double.infinity,
                   height: 48,
-                  decoration: BoxDecoration(color: CNColors.accent, borderRadius: BorderRadius.circular(14)),
+                  decoration: BoxDecoration(color: cn.accent, borderRadius: BorderRadius.circular(999)),
                   alignment: Alignment.center,
-                  child: Text(_busy ? 'Publishing...' : 'Publish Poll', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                  child: Text(
+                    _busy ? 'Publishing...' : 'Publish Poll',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                  ),
                 ),
               ),
             ],
@@ -449,30 +519,30 @@ class _CreatePollSheetState extends ConsumerState<_CreatePollSheet> {
 }
 
 class _InputBox extends StatelessWidget {
-  const _InputBox({required this.controller, required this.hint, this.maxLines = 1, this.onChanged});
+  const _InputBox({required this.controller, required this.hint});
   final TextEditingController controller;
   final String hint;
-  final int maxLines;
-  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
+    final cn = context.cn;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       decoration: BoxDecoration(
-        color: CNColors.surfaceRecessed,
+        color: cn.surfaceRecessed,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: CNColors.borderSubtle),
+        border: Border.all(color: cn.borderSubtle),
       ),
       child: TextField(
         controller: controller,
-        maxLines: maxLines,
-        onChanged: onChanged,
-        style: const TextStyle(fontSize: 14.5, color: CNColors.textPrimary),
+        style: TextStyle(fontSize: 14.5, color: cn.textPrimary),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: CNColors.textFaint, fontSize: 13.5),
+          hintStyle: TextStyle(color: cn.textFaint, fontSize: 13.5),
           border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          filled: false,
         ),
       ),
     );
@@ -489,6 +559,7 @@ class _FmtBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cn = context.cn;
     return Padding(
       padding: const EdgeInsets.only(right: 14),
       child: LiquidTap(
@@ -497,6 +568,7 @@ class _FmtBtn extends StatelessWidget {
           label,
           style: TextStyle(
             fontSize: 15,
+            color: cn.textPrimary,
             fontWeight: bold ? FontWeight.w900 : FontWeight.w700,
             fontStyle: italic ? FontStyle.italic : FontStyle.normal,
             decoration: underline ? TextDecoration.underline : TextDecoration.none,

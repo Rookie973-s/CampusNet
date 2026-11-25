@@ -26,12 +26,13 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 VERIFICATION_FEE_NGN = Decimal("1500.00")
-MAX_AD_PRICE_NGN = Decimal("4000.00")
+MAX_AD_PRICE_NGN = Decimal("5000.00")
+MAX_AD_PRICE_KOBO = 500000
 MIN_AD_PRICE_NGN = Decimal("500.00")
 
 
 def calculate_ad_price(start_date, end_date, targeting=None, placements=None) -> dict:
-    """Server-authoritative ad pricing calculator. Strictly capped at NGN 4,000."""
+    """Server-authoritative ad pricing calculator. Strictly capped at NGN 5,000 (500,000 kobo)."""
     targeting = targeting or {}
     placements = placements or ["feed"]
     days = max(1, (end_date - start_date).days + 1) if (start_date and end_date) else 1
