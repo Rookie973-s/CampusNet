@@ -76,19 +76,35 @@ def extract_and_record_mentions(text: str, actor, *, question=None, answer=None)
 
 
 def _record_genuine_view(request, question: Question) -> bool:
-    """Deduplicated genuine view tracking: ignores probable bots and counts at most
-    1 view per user (or per hashed IP for guests) per question per hour."""
+    """Strictly unique view tracking (lifetime per user/guest per post).
+
+    - Ignores probable bots.
+    - Registered users are counted at most ONCE EVER per post (by user_id).
+    - Guests are counted at most ONCE EVER per post (by salted IP + User-Agent fingerprint).
+    """
+    import hashlib
+    from django.conf import settings as _settings
+    from django.db import transaction
+
     if is_probable_bot(request):
         return False
+
     ip_h = hash_ip(request)
+    ua = (request.META.get("HTTP_USER_AGENT") or "")[:160].lower()
+    salt = getattr(_settings, "SECRET_KEY", "cenet")[:16]
+    guest_key = hashlib.sha256(f"{salt}:{ip_h}:{ua}".encode("utf-8")).hexdigest()[:48]
+
     user = request.user if (request.user and request.user.is_authenticated) else None
-    since = timezone.now() - timedelta(hours=1)
-    recent = PostView.objects.filter(question=question, viewed_at__gte=since)
-    recent = recent.filter(user=user) if user else recent.filter(ip_hash=ip_h)
-    if recent.exists():
-        return False
-    PostView.objects.create(question=question, user=user, ip_hash=ip_h)
-    Question.objects.filter(pk=question.pk).update(views=F("views") + 1)
+    with transaction.atomic():
+        if user is not None:
+            if PostView.objects.filter(question=question, user=user).exists():
+                return False
+            PostView.objects.create(question=question, user=user, ip_hash=guest_key)
+        else:
+            if PostView.objects.filter(question=question, user__isnull=True, ip_hash=guest_key).exists():
+                return False
+            PostView.objects.create(question=question, user=None, ip_hash=guest_key)
+        Question.objects.filter(pk=question.pk).update(views=F("views") + 1)
     return True
 
 
@@ -208,13 +224,17 @@ class QuestionViewSet(viewsets.ModelViewSet):
             hidden_ids = HiddenQuestion.objects.filter(user=self.request.user).values_list("question_id", flat=True)
             qs = qs.exclude(pk__in=hidden_ids)
         p = self.request.query_params
-        topic = p.get("topic")
-        if topic and topic != "All":
-            qs = qs.filter(
-                Q(department__name__iexact=topic)
-                | Q(department__isnull=True)
-                | Q(tags__name__iexact=topic)
-            ).distinct()
+        topic = (p.get("topic") or "").strip()
+        if topic and topic.lower() not in ("all", "all faculties"):
+            # Strict faculty filter: ONLY show posts belonging to this specific faculty
+            # (never leak general/all-faculty posts when a user selects a specific faculty).
+            from departments.models import Department
+            if Department.objects.filter(name__iexact=topic).exists():
+                qs = qs.filter(department__name__iexact=topic).distinct()
+            else:
+                qs = qs.filter(
+                    Q(department__name__iexact=topic) | Q(tags__name__iexact=topic)
+                ).distinct()
 
         # Topic-based discovery filter (e.g. clicking a Trending Now entry)
         discovery = (p.get("discovery") or "").strip()

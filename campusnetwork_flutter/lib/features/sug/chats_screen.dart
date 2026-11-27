@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/clay_system.dart';
 import '../../core/widgets/morphism_widgets.dart';
 import '../../core/widgets/skeleton_widgets.dart';
 import '../auth/auth_provider.dart';
@@ -194,10 +195,9 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                                 constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.78),
                                 margin: const EdgeInsets.only(bottom: 8),
                                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: mine ? cn.accent : cn.surfaceHigh,
-                                  borderRadius: BorderRadius.circular(18),
-                                ),
+                                decoration: mine
+                                    ? ClayDecorations.button(context, color: cn.accent, radius: 20)
+                                    : ClayDecorations.card(context, radius: 20, elevation: ClayElevation.low),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
@@ -228,24 +228,11 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      decoration: BoxDecoration(
-                        color: cn.surfaceRecessed,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: TextField(
-                        controller: _ctrl,
-                        style: TextStyle(color: cn.textPrimary),
-                        decoration: InputDecoration(
-                          hintText: 'Write a message...',
-                          hintStyle: TextStyle(color: cn.textFaint),
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          filled: false,
-                        ),
-                      ),
+                    child: ClayTextField(
+                      controller: _ctrl,
+                      hint: 'Write a message...',
+                      prefixIcon: Icons.chat_bubble_outline_rounded,
+                      radius: 22,
                     ),
                   ),
                   const SizedBox(width: 8),

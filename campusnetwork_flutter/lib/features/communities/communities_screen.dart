@@ -12,6 +12,7 @@ import '../../core/models/models.dart';
 import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/clay_system.dart';
 import '../../core/widgets/form_templates.dart';
 import '../../core/widgets/morphism_widgets.dart';
 import '../../core/widgets/rich_mention_text.dart';
@@ -246,15 +247,11 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
           children: [
             // Search input (COMMUNITIES reference)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-              decoration: BoxDecoration(
-                color: cn.surface,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: cn.borderSubtle),
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: ClayDecorations.input(context, radius: 999),
               child: Row(
                 children: [
-                  Icon(Icons.search_rounded, size: 19, color: cn.textMuted),
+                  ClayIconPill(icon: Icons.search_rounded, color: cn.accent, size: 30, iconSize: 16),
                   const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
@@ -264,7 +261,7 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
                         _debounce?.cancel();
                         _debounce = Timer(const Duration(milliseconds: 280), _load);
                       },
-                      style: TextStyle(color: cn.textPrimary, fontSize: 14.5),
+                      style: TextStyle(color: cn.textPrimary, fontSize: 14.5, fontWeight: FontWeight.w600),
                       decoration: InputDecoration(
                         hintText: widget.mineOnly ? 'Filter your communities...' : 'Search communities...',
                         hintStyle: TextStyle(color: cn.textFaint, fontSize: 14),
@@ -282,7 +279,7 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
             const SizedBox(height: 12),
             // Category pills
             SizedBox(
-              height: 36,
+              height: 40,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: kCommunityCategories.length,
@@ -296,16 +293,13 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
                       _load();
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: active ? cn.accent : cn.surface,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: active ? cn.accent : cn.borderSubtle),
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                      decoration: ClayDecorations.pill(context, active: active),
+                      alignment: Alignment.center,
                       child: Text(
                         cat,
                         style: TextStyle(
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
                           fontSize: 12.5,
                           color: active ? Colors.white : cn.textPrimary,
                         ),
@@ -1476,30 +1470,20 @@ class _CommunityPostCommentsSheetState extends ConsumerState<_CommunityPostComme
                 Row(
                   children: [
                     Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        decoration: BoxDecoration(color: cn.surfaceRecessed, borderRadius: BorderRadius.circular(14)),
-                        child: TextField(
-                          controller: _ctrl,
-                          style: TextStyle(color: cn.textPrimary),
-                          decoration: InputDecoration(
-                            hintText: _replyTo != null ? 'Write a reply...' : 'Add a comment...',
-                            hintStyle: TextStyle(color: cn.textFaint),
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            filled: false,
-                          ),
-                        ),
+                      child: ClayTextField(
+                        controller: _ctrl,
+                        hint: _replyTo != null ? 'Write a reply...' : 'Add a comment...',
+                        prefixIcon: Icons.chat_bubble_outline_rounded,
+                        radius: 22,
                       ),
                     ),
                     const SizedBox(width: 8),
                     LiquidTap(
                       onTap: _sending ? null : _send,
                       child: Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(color: cn.accent, borderRadius: BorderRadius.circular(14)),
+                        width: 48,
+                        height: 48,
+                        decoration: ClayDecorations.button(context, color: cn.accent, radius: 18, disabled: _sending),
                         child: const Icon(Icons.send_rounded, color: Colors.white, size: 19),
                       ),
                     ),

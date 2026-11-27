@@ -11,6 +11,7 @@ import '../../core/models/models.dart';
 import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/clay_system.dart';
 import '../../core/widgets/morphism_widgets.dart';
 import '../../core/widgets/skeleton_widgets.dart';
 import '../auth/auth_provider.dart';
@@ -1129,21 +1130,19 @@ class _UploadPdfSheetState extends ConsumerState<_UploadPdfSheet> {
               ),
               if (_showAddCourse) ...[
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(14),
                   margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(color: cn.surfaceRecessed, borderRadius: BorderRadius.circular(14)),
+                  decoration: ClayDecorations.recessed(context, radius: 18),
                   child: Column(
                     children: [
-                      TextField(controller: _courseCodeCtrl, decoration: const InputDecoration(hintText: 'Course Code (e.g. CS311)')),
-                      const SizedBox(height: 8),
-                      TextField(controller: _courseTitleCtrl, decoration: const InputDecoration(hintText: 'Course Title (e.g. Ai/ML)')),
+                      ClayTextField(controller: _courseCodeCtrl, hint: 'Course Code (e.g. CS311)', prefixIcon: Icons.tag_rounded),
                       const SizedBox(height: 10),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _busy ? null : _createCourse,
-                          child: const Text('Save Course Folder'),
-                        ),
+                      ClayTextField(controller: _courseTitleCtrl, hint: 'Course Title (e.g. Ai/ML)', prefixIcon: Icons.book_outlined),
+                      const SizedBox(height: 12),
+                      ClayButton(
+                        label: 'Save Course Folder',
+                        busy: _busy,
+                        onTap: _busy ? null : _createCourse,
                       ),
                     ],
                   ),
@@ -1151,19 +1150,19 @@ class _UploadPdfSheetState extends ConsumerState<_UploadPdfSheet> {
               ],
 
               const SizedBox(height: 6),
-              Text('Title *', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: cn.textPrimary)),
-              const SizedBox(height: 6),
-              TextField(
+              ClayTextField(
                 controller: _titleCtrl,
-                decoration: const InputDecoration(hintText: 'e.g. BIO 111 Past Questions 2024'),
+                label: 'Title *',
+                hint: 'e.g. BIO 111 Past Questions 2024',
+                prefixIcon: Icons.picture_as_pdf_rounded,
               ),
               const SizedBox(height: 12),
-              Text('Description (optional)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: cn.textPrimary)),
-              const SizedBox(height: 6),
-              TextField(
+              ClayTextField(
                 controller: _descCtrl,
+                label: 'Description (optional)',
+                hint: "Session, lecturer, what's inside...",
+                prefixIcon: Icons.notes_rounded,
                 maxLines: 3,
-                decoration: const InputDecoration(hintText: "Session, lecturer, what's inside..."),
               ),
               const SizedBox(height: 20),
 

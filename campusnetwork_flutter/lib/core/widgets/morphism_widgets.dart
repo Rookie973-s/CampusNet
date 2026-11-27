@@ -13,6 +13,7 @@ import '../models/models.dart';
 import '../motion/liquid_motion.dart';
 import '../network/api_client.dart';
 import '../theme/app_theme.dart';
+import '../theme/clay_system.dart';
 
 /// Parse `#RRGGBB` hex string into a Flutter [Color] safely.
 Color hexToColor(String hex, {Color fallback = const Color(0xFF1D9BF0)}) {
@@ -43,26 +44,28 @@ class BrandMark extends StatelessWidget {
   }
 }
 
-/// Shared Root-Navigator Overlay Helpers (fixes bottom-nav overlap & black-screen pop bugs!).
+/// Shared Root-Navigator Overlay Helpers (claymorphic dome surface — fixes bottom-nav overlap & pop bugs!).
 class AppBottomSheet {
   static Future<T?> show<T>(
     BuildContext context, {
     required WidgetBuilder builder,
     bool isScrollControlled = true,
   }) {
-    final c = context.cn;
     return showModalBottomSheet<T>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: isScrollControlled,
       useSafeArea: true,
-      backgroundColor: c.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (sheetCtx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheetCtx).bottom),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheetCtx).height * 0.9),
-          child: builder(sheetCtx),
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => Container(
+        decoration: ClayDecorations.modal(sheetCtx),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheetCtx).bottom),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheetCtx).height * 0.9),
+            child: builder(sheetCtx),
+          ),
         ),
       ),
     );
@@ -140,48 +143,9 @@ class MorphismCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.cn;
-    final isDark = context.isDark;
-    final base = color ?? c.surface;
-    final topTint = isDark
-        ? Color.lerp(base, Colors.white, 0.045)!
-        : Color.lerp(base, Colors.white, 0.55)!;
-    final bottomTint = isDark
-        ? Color.lerp(base, Colors.black, 0.12)!
-        : Color.lerp(base, const Color(0xFFDCE4F2), 0.18)!;
-
     return Container(
       padding: padding,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [topTint, base, bottomTint],
-        ),
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.09) : Colors.white.withValues(alpha: 0.92),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isDark ? Colors.black.withValues(alpha: 0.52) : const Color(0xFF1E293B).withValues(alpha: 0.10),
-            blurRadius: 22,
-            spreadRadius: -3,
-            offset: const Offset(0, 11),
-          ),
-          BoxShadow(
-            color: isDark ? Colors.black.withValues(alpha: 0.30) : const Color(0xFF0F172A).withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-          BoxShadow(
-            color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.white.withValues(alpha: 0.95),
-            blurRadius: 8,
-            offset: const Offset(-3, -3),
-          ),
-        ],
-      ),
+      decoration: ClayDecorations.card(context, radius: radius, color: color),
       child: child,
     );
   }
@@ -268,7 +232,7 @@ class UserAvatar extends StatelessWidget {
     super.key,
     this.url,
     required this.initials,
-    this.bgHex = '#3B82F6',
+    this.bgHex = '#64748B',
     this.size = 42,
   });
 
@@ -279,11 +243,25 @@ class UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = parseHexColor(bgHex);
+    final isDark = context.isDark;
+    final tint = parseHexColor(bgHex, const Color(0xFF64748B));
+    final fallbackBg = isDark
+        ? Color.lerp(const Color(0xFF2B3440), tint, 0.35)!
+        : Color.lerp(const Color(0xFFCBD5E1), tint, 0.35)!;
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+      decoration: BoxDecoration(
+        color: fallbackBg,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.08),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       clipBehavior: Clip.antiAlias,
       alignment: Alignment.center,
       child: url != null && url!.isNotEmpty
@@ -292,15 +270,20 @@ class UserAvatar extends StatelessWidget {
               width: size,
               height: size,
               fit: BoxFit.cover,
-              errorWidget: (_, __, ___) => _initials(),
+              placeholder: (_, __) => _defaultSilhouette(isDark),
+              errorWidget: (_, __, ___) => _defaultSilhouette(isDark),
             )
-          : _initials(),
+          : _defaultSilhouette(isDark),
     );
   }
 
-  Widget _initials() => Text(
-        initials.length > 2 ? initials.substring(0, 2).toUpperCase() : initials.toUpperCase(),
-        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: size * 0.36, decoration: TextDecoration.none),
+  /// Default WhatsApp / Facebook / X-style person silhouette avatar icon.
+  Widget _defaultSilhouette(bool isDark) => Center(
+        child: Icon(
+          Icons.person_rounded,
+          size: size * 0.62,
+          color: Colors.white.withValues(alpha: isDark ? 0.88 : 0.96),
+        ),
       );
 }
 
@@ -469,51 +452,53 @@ class FacultyDropdown extends StatelessWidget {
           orElse: () => null,
         );
 
-    final isDark = context.isDark;
+    final hasSelected = value.isNotEmpty && value != 'All';
     return LiquidTap(
       onTap: () => _openSheet(context),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        decoration: BoxDecoration(
-          color: c.surface,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: value.isNotEmpty && value != 'All'
-                ? c.accent.withValues(alpha: 0.45)
-                : (isDark ? Colors.white.withValues(alpha: 0.07) : Colors.white.withValues(alpha: 0.9)),
-            width: 1.0,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: isDark ? Colors.black.withValues(alpha: 0.35) : const Color(0xFF0F172A).withValues(alpha: 0.06),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: ClayDecorations.input(context, radius: 999, focused: hasSelected),
         child: Row(
           children: [
             if (active?.colorHex != null)
               Container(
-                width: 9,
-                height: 9,
+                width: 26,
+                height: 26,
                 margin: const EdgeInsets.only(right: 8),
-                decoration: BoxDecoration(color: parseHexColor(active!.colorHex!), shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color.lerp(parseHexColor(active!.colorHex!), Colors.white, 0.28)!,
+                      parseHexColor(active.colorHex!),
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: parseHexColor(active.colorHex!).withValues(alpha: 0.35),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Icon(icon, size: 13, color: Colors.white),
               )
             else
               Padding(
                 padding: const EdgeInsets.only(right: 8),
-                child: Icon(icon, size: 16, color: c.accent),
+                child: ClayIconPill(icon: icon, color: c.accent, size: 26, iconSize: 13),
               ),
             Expanded(
               child: Text(
                 active?.label ?? placeholder,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: c.textPrimary),
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: c.textPrimary),
               ),
             ),
-            Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: c.textSecondary),
+            Icon(Icons.keyboard_arrow_down_rounded, size: 19, color: c.textSecondary),
           ],
         ),
       ),

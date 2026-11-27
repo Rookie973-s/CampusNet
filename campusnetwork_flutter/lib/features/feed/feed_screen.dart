@@ -11,6 +11,7 @@ import '../../core/models/models.dart';
 import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/clay_system.dart';
 import '../../core/widgets/morphism_widgets.dart';
 import '../../core/widgets/rich_mention_text.dart';
 import '../../core/widgets/skeleton_widgets.dart';
@@ -357,17 +358,13 @@ class FeedScreen extends ConsumerWidget {
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 180),
                                 padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 7),
-                                decoration: BoxDecoration(
-                                  color: active ? c.accentSoft : c.surface,
-                                  borderRadius: BorderRadius.circular(999),
-                                  border: Border.all(color: active ? c.accent : c.divider),
-                                ),
+                                decoration: ClayDecorations.pill(context, active: active),
                                 child: Text(
                                   f,
                                   style: TextStyle(
                                     fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: active ? c.accent : c.textPrimary,
+                                    fontWeight: FontWeight.w800,
+                                    color: active ? Colors.white : c.textPrimary,
                                   ),
                                 ),
                               ),
@@ -386,24 +383,55 @@ class FeedScreen extends ConsumerWidget {
               }
 
               if (feed.items.isEmpty) {
+                final hasFacultyFilter = feed.topic.isNotEmpty && feed.topic != 'All';
                 return Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    children: [
-                      Icon(Icons.article_outlined, size: 42, color: c.textSecondary),
-                      const SizedBox(height: 10),
-                      Text('No discussions found', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5, color: c.textPrimary)),
-                      const SizedBox(height: 4),
-                      Text(
-                        feed.error ?? 'Switch filters or tap + below to start a conversation.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: c.textSecondary, fontSize: 13),
-                      ),
-                      if (feed.error != null) ...[
+                  padding: const EdgeInsets.all(20),
+                  child: MorphismCard(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+                    child: Column(
+                      children: [
+                        ClayIconPill(
+                          icon: hasFacultyFilter ? Icons.school_outlined : Icons.article_outlined,
+                          color: c.accent,
+                          size: 48,
+                        ),
                         const SizedBox(height: 12),
-                        ElevatedButton(onPressed: () => ref.read(feedProvider.notifier).load(), child: const Text('Retry')),
+                        Text(
+                          hasFacultyFilter ? 'No posts in ${feed.topic} yet' : 'No discussions found',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: c.textPrimary),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          feed.error ??
+                              (hasFacultyFilter
+                                  ? 'No user has posted under ${feed.topic} yet. Tap + below to post the first one or switch back to All Faculties.'
+                                  : 'Switch filters or tap + below to start a conversation.'),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: c.textSecondary, fontSize: 13.5, height: 1.45),
+                        ),
+                        if (hasFacultyFilter) ...[
+                          const SizedBox(height: 14),
+                          LiquidTap(
+                            onTap: () => ref.read(feedProvider.notifier).load(topic: 'All'),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: c.accent,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: const Text(
+                                'Show All Faculties',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13),
+                              ),
+                            ),
+                          ),
+                        ] else if (feed.error != null) ...[
+                          const SizedBox(height: 12),
+                          ElevatedButton(onPressed: () => ref.read(feedProvider.notifier).load(), child: const Text('Retry')),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 );
               }
@@ -422,7 +450,7 @@ class FeedScreen extends ConsumerWidget {
                   PostTile(
                     q: q,
                     currentUserId: user?.id,
-                    isAuthor: user != null && (q.userId == user.id || q.canEdit || q.canDelete),
+                    isAuthor: user != null && q.userId == user.id,
                     onRequireAuth: () => showAuthSheet(context),
                   ),
                   Divider(height: 0.6, thickness: 0.6, color: c.divider),
@@ -654,10 +682,10 @@ class PostTile extends ConsumerWidget {
           // Compact Pill Action Row (exact FEEDS reference — NO white divider above!)
           Row(
             children: [
-              // Upvote / Score / Downvote pill
+              // Upvote / Score / Downvote clay pill
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(99)),
+                decoration: ClayDecorations.pill(context),
                 child: Row(
                   children: [
                     LiquidTap(
@@ -677,12 +705,12 @@ class PostTile extends ConsumerWidget {
               ),
               const SizedBox(width: 8),
 
-              // Comments pill
+              // Comments clay pill
               LiquidTap(
                 onTap: () => context.push('/question/${q.publicId}', extra: q),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-                  decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(99)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: ClayDecorations.pill(context),
                   child: Row(
                     children: [
                       Icon(Icons.chat_bubble_outline_rounded, size: 15, color: c.textSecondary),
@@ -694,30 +722,32 @@ class PostTile extends ConsumerWidget {
               ),
               const SizedBox(width: 8),
 
-              // Like pill
+              // Like clay pill
               LiquidTap(
                 onTap: () => user == null ? onRequireAuth() : ref.read(feedProvider.notifier).toggleLike(q),
                 onLongPress: isAuthor ? () => _showAnalyticsModal(context, ref) : null,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-                  decoration: BoxDecoration(color: q.liked ? c.dangerSoft : c.surface, borderRadius: BorderRadius.circular(99)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: q.liked
+                      ? ClayDecorations.pill(context, active: true, activeColor: c.danger)
+                      : ClayDecorations.pill(context),
                   child: Row(
                     children: [
-                      Icon(q.liked ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 15, color: q.liked ? c.danger : c.textSecondary),
+                      Icon(q.liked ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 15, color: q.liked ? Colors.white : c.textSecondary),
                       const SizedBox(width: 5),
-                      Text('${q.likes}', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: q.liked ? c.danger : c.textPrimary)),
+                      Text('${q.likes}', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: q.liked ? Colors.white : c.textPrimary)),
                     ],
                   ),
                 ),
               ),
               const SizedBox(width: 8),
 
-              // Share pill
+              // Share clay pill
               LiquidTap(
                 onTap: () => showRadialShareFan(context, title: q.title, url: '$kWebOrigin/q/${q.publicId}'),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(99)),
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                  decoration: ClayDecorations.pill(context),
                   child: Icon(Icons.send_rounded, size: 15, color: c.textSecondary),
                 ),
               ),
@@ -766,36 +796,34 @@ class PostTile extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Edit Post', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: ctx.cn.textPrimary)),
+                const SizedBox(height: 14),
+                ClayTextField(controller: titleCtrl, label: 'Headline', hint: 'Headline', prefixIcon: Icons.title_rounded),
                 const SizedBox(height: 12),
-                TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Headline')),
-                const SizedBox(height: 10),
-                TextField(controller: bodyCtrl, maxLines: 5, decoration: const InputDecoration(labelText: 'Post Content')),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: busy
-                        ? null
-                        : () async {
-                            final t = titleCtrl.text.trim();
-                            final b = bodyCtrl.text.trim();
-                            if (t.isEmpty || b.isEmpty) return;
-                            setS(() => busy = true);
-                            try {
-                              await ref.read(feedProvider.notifier).editPost(q, title: t, body: b);
-                              if (ctx.mounted) Navigator.of(ctx, rootNavigator: true).pop();
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Post updated!')));
-                              }
-                            } catch (e) {
-                              setS(() => busy = false);
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(parseApiError(e))));
-                              }
+                ClayTextField(controller: bodyCtrl, label: 'Post Content', hint: 'Write your post...', prefixIcon: Icons.edit_note_rounded, maxLines: 5),
+                const SizedBox(height: 18),
+                ClayButton(
+                  label: busy ? 'Saving...' : 'Save Changes',
+                  busy: busy,
+                  onTap: busy
+                      ? null
+                      : () async {
+                          final t = titleCtrl.text.trim();
+                          final b = bodyCtrl.text.trim();
+                          if (t.isEmpty || b.isEmpty) return;
+                          setS(() => busy = true);
+                          try {
+                            await ref.read(feedProvider.notifier).editPost(q, title: t, body: b);
+                            if (ctx.mounted) Navigator.of(ctx, rootNavigator: true).pop();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Post updated!')));
                             }
-                          },
-                    child: Text(busy ? 'Saving...' : 'Save Changes'),
-                  ),
+                          } catch (e) {
+                            setS(() => busy = false);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(parseApiError(e))));
+                            }
+                          }
+                        },
                 ),
               ],
             ),
@@ -808,8 +836,11 @@ class PostTile extends ConsumerWidget {
   void _openThreeDotMenu(BuildContext context, WidgetRef ref) {
     final c = context.cn;
     final currentUser = ref.read(authProvider).user;
-    final canEdit = q.canEdit ||
-        (isAuthor && ((currentUser?.isVerifiedStudent ?? false) || (currentUser?.isVerifiedStaff ?? false)));
+    // STRICT: ONLY the post's own author (if verified student or verified SUG) can edit their own post!
+    final canEdit = isAuthor &&
+        (q.canEdit ||
+            (currentUser?.isVerifiedStudent ?? false) ||
+            (currentUser?.isVerifiedStaff ?? false));
 
     AppBottomSheet.show(
       context,

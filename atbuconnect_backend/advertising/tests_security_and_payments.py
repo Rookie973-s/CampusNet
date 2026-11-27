@@ -199,3 +199,109 @@ class SecurityAndPaymentsTests(TestCase):
         # Tampered signature is rejected with 403
         bad = anon.get(f"/api/library/documents/{doc.pk}/file/?sig=tampered")
         self.assertEqual(bad.status_code, 403)
+
+    def test_community_avatar_and_cover_upload_syncs_via_db_storage(self):
+        import io
+        from PIL import Image
+        from urllib.parse import urlparse
+        from communities.models import Community, CommunityMembership
+        from media_app.models import StoredMediaFile
+
+        comm = Community.objects.create(name="ATBU MUFC", description="Red fans", creator=self.user)
+        CommunityMembership.objects.create(community=comm, user=self.user, role=CommunityMembership.Role.OWNER)
+
+        def _img(color):
+            b = io.BytesIO()
+            Image.new("RGB", (80, 80), color).save(b, format="JPEG")
+            b.seek(0)
+            return SimpleUploadedFile("pic.jpg", b.read(), content_type="image/jpeg")
+
+        self.client.force_authenticate(self.user)
+        res = self.client.patch(
+            f"/api/communities/{comm.slug}/",
+            {"description": "Updated bio", "avatar": _img("red"), "cover_image": _img("blue")},
+            format="multipart",
+        )
+        self.assertEqual(res.status_code, 200)
+        d = res.json()
+        self.assertTrue(d["avatar_url"])
+        self.assertTrue(d["cover_url"])
+        # Stored in PostgreSQL StoredMediaFile and served across any client via /media/...
+        self.assertGreaterEqual(StoredMediaFile.objects.filter(is_private=False).count(), 2)
+        av_path = urlparse(d["avatar_url"]).path
+        cv_path = urlparse(d["cover_url"]).path
+        anon = APIClient()
+        r_av = anon.get(av_path)
+        r_cv = anon.get(cv_path)
+        self.assertEqual(r_av.status_code, 200)
+        self.assertEqual(r_cv.status_code, 200)
+        self.assertTrue(r_av["Content-Type"].startswith("image/"))
+
+    def test_unique_lifetime_views_for_registered_and_guest_users(self):
+        from questions.models import Question
+
+        q = Question.objects.create(author=self.user, title="Views check", body="Body text")
+        # Registered user views 3 times -> still 1 view
+        self.client.force_authenticate(self.user)
+        for _ in range(3):
+            r = self.client.get(f"/api/questions/{q.public_id}/", HTTP_USER_AGENT="FlutterApp/2.0")
+            self.assertEqual(r.status_code, 200)
+        q.refresh_from_db()
+        self.assertEqual(q.views, 1)
+
+        # Second registered user views twice -> 2 views total
+        self.client.force_authenticate(self.other)
+        self.client.get(f"/api/questions/{q.public_id}/", HTTP_USER_AGENT="FlutterApp/2.0")
+        self.client.get(f"/api/questions/{q.public_id}/", HTTP_USER_AGENT="FlutterApp/2.0")
+        q.refresh_from_db()
+        self.assertEqual(q.views, 2)
+
+        # Guest views twice with same browser -> 3 views total
+        anon = APIClient()
+        anon.get(f"/api/questions/{q.public_id}/", HTTP_USER_AGENT="Mozilla/5.0 Chrome/120")
+        anon.get(f"/api/questions/{q.public_id}/", HTTP_USER_AGENT="Mozilla/5.0 Chrome/120")
+        q.refresh_from_db()
+        self.assertEqual(q.views, 3)
+
+    def test_strict_faculty_filter_excludes_general_posts(self):
+        from questions.models import Question
+
+        comp = Department.objects.create(name="Computing", color="#2563EB")
+        eng = Department.objects.create(name="Engineering", color="#059669")
+        Question.objects.create(author=self.user, department=None, title="General post", body="All faculties")
+        Question.objects.create(author=self.user, department=comp, title="Computing post", body="CS only")
+
+        r_comp = self.client.get("/api/questions/?topic=Computing")
+        self.assertEqual(r_comp.status_code, 200)
+        titles = [item["title"] for item in r_comp.json()["results"]]
+        self.assertEqual(titles, ["Computing post"])
+
+        # Empty faculty returns [] (zero general posts leaked!)
+        r_eng = self.client.get("/api/questions/?topic=Engineering")
+        self.assertEqual(r_eng.status_code, 200)
+        self.assertEqual(r_eng.json()["results"], [])
+
+    def test_verified_student_and_sug_cannot_edit_other_users_post(self):
+        from questions.models import Question
+
+        self.user.is_verified_student = True
+        self.user.save(update_fields=["is_verified_student"])
+        self.other.is_verified_student = True
+        self.other.is_verified_staff = True
+        self.other.is_staff = True
+        self.other.save(update_fields=["is_verified_student", "is_verified_staff", "is_staff"])
+
+        q = Question.objects.create(author=self.user, title="Original Title", body="Original Body")
+
+        # Another verified student / SUG / staff CANNOT edit this user's post
+        self.client.force_authenticate(self.other)
+        r_forbid = self.client.patch(f"/api/questions/{q.public_id}/", {"title": "Hacked Title"}, format="json")
+        self.assertEqual(r_forbid.status_code, 403)
+        r_get = self.client.get(f"/api/questions/{q.public_id}/")
+        self.assertFalse(r_get.json()["can_edit"])
+
+        # Original verified author CAN edit their own post
+        self.client.force_authenticate(self.user)
+        r_ok = self.client.patch(f"/api/questions/{q.public_id}/", {"title": "Updated Title"}, format="json")
+        self.assertEqual(r_ok.status_code, 200)
+        self.assertEqual(r_ok.json()["title"], "Updated Title")

@@ -6,28 +6,28 @@ import 'package:flutter/services.dart';
 /// - Uses real SpringDescription / SpringSimulation rather than linear timers
 /// - Automatically honors MediaQuery.disableAnimations (reduced-motion accessibility)
 class LiquidSprings {
-  /// Snappy tactile tap bounce
-  static const snappy = SpringDescription(mass: 1.0, stiffness: 520, damping: 28);
+  /// Snappy tactile tap bounce (visibly responsive squish & pop)
+  static const snappy = SpringDescription(mass: 1.0, stiffness: 420, damping: 20);
 
   /// Bouncy FAB & ShareFan radial pop
-  static const bouncy = SpringDescription(mass: 1.0, stiffness: 360, damping: 20);
+  static const bouncy = SpringDescription(mass: 1.0, stiffness: 320, damping: 18);
 
   /// Smooth Telegram-like sheet / card wheel glide
-  static const smooth = SpringDescription(mass: 1.0, stiffness: 280, damping: 26);
+  static const smooth = SpringDescription(mass: 1.0, stiffness: 260, damping: 24);
 
   static bool reducedMotion(BuildContext context) =>
       MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 }
 
-/// Reusable tactile spring-scale press wrapper with subtle haptic feedback.
-/// Wraps buttons, cards, pills, and icons so every touch feels alive.
+/// Reusable tactile spring-scale press wrapper with visible press feedback & haptic click.
+/// Wraps buttons, cards, pills, and icons so every touch feels unmistakably alive.
 class LiquidTap extends StatefulWidget {
   const LiquidTap({
     super.key,
     required this.child,
     this.onTap,
     this.onLongPress,
-    this.scaleDown = 0.96,
+    this.scaleDown = 0.92,
     this.haptic = true,
     this.enabled = true,
   });
@@ -45,6 +45,7 @@ class LiquidTap extends StatefulWidget {
 
 class _LiquidTapState extends State<LiquidTap> with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
+  bool _pressed = false;
 
   @override
   void initState() {
@@ -58,7 +59,10 @@ class _LiquidTapState extends State<LiquidTap> with SingleTickerProviderStateMix
     super.dispose();
   }
 
-  void _animateTo(double target) {
+  void _animateTo(double target, {bool pressed = false}) {
+    if (_pressed != pressed && mounted) {
+      setState(() => _pressed = pressed);
+    }
     if (LiquidSprings.reducedMotion(context)) {
       _ctrl.value = target;
       return;
@@ -71,25 +75,32 @@ class _LiquidTapState extends State<LiquidTap> with SingleTickerProviderStateMix
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTapDown: widget.enabled ? (_) => _animateTo(widget.scaleDown) : null,
+      onTapDown: widget.enabled ? (_) => _animateTo(widget.scaleDown, pressed: true) : null,
       onTapUp: widget.enabled
           ? (_) {
-              _animateTo(1.0);
+              _animateTo(1.0, pressed: false);
               if (widget.haptic) HapticFeedback.lightImpact();
               widget.onTap?.call();
             }
           : null,
-      onTapCancel: widget.enabled ? () => _animateTo(1.0) : null,
+      onTapCancel: widget.enabled ? () => _animateTo(1.0, pressed: false) : null,
       onLongPress: widget.enabled && widget.onLongPress != null
           ? () {
-              _animateTo(1.0);
+              _animateTo(1.0, pressed: false);
               if (widget.haptic) HapticFeedback.mediumImpact();
               widget.onLongPress?.call();
             }
           : null,
       child: AnimatedBuilder(
         animation: _ctrl,
-        builder: (_, child) => Transform.scale(scale: _ctrl.value, child: child),
+        builder: (_, child) => Transform.scale(
+          scale: _ctrl.value,
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 90),
+            opacity: _pressed ? 0.84 : 1.0,
+            child: child,
+          ),
+        ),
         child: widget.child,
       ),
     );

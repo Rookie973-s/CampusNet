@@ -12,6 +12,7 @@ import '../../core/models/models.dart';
 import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/clay_system.dart';
 import '../../core/widgets/morphism_widgets.dart';
 import '../../core/widgets/skeleton_widgets.dart';
 import '../auth/auth_provider.dart';
@@ -338,14 +339,10 @@ class _MeScreenState extends ConsumerState<MeScreen> {
                   ),
                 ],
                 const SizedBox(height: 16),
-                // 3-stat horizontal pill (Followers | Following | Questions) — NO Answers grid!
+                // 3-stat recessed clay tray (Followers | Following | Questions)
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(
-                    color: cn.surfaceRecessed,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: cn.borderSubtle),
-                  ),
+                  decoration: ClayDecorations.recessed(context, radius: 20),
                   child: Row(
                     children: [
                       Expanded(
@@ -435,14 +432,10 @@ class _MeScreenState extends ConsumerState<MeScreen> {
           ),
           const SizedBox(height: 18),
 
-          // Posts / Saved Switcher
+          // Posts / Saved Switcher (recessed clay track + raised clay active pill)
           Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: cn.surface,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: cn.borderSubtle),
-            ),
+            padding: const EdgeInsets.all(5),
+            decoration: ClayDecorations.recessed(context, radius: 999),
             child: Row(
               children: [
                 Expanded(
@@ -451,12 +444,12 @@ class _MeScreenState extends ConsumerState<MeScreen> {
                       setState(() => _contentTab = 'questions');
                       _loadPosts();
                     },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 9),
-                      decoration: BoxDecoration(
-                        color: _contentTab == 'questions' ? cn.accent : Colors.transparent,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: _contentTab == 'questions'
+                          ? ClayDecorations.button(context, color: cn.accent, radius: 999)
+                          : const BoxDecoration(),
                       alignment: Alignment.center,
                       child: Text(
                         'My Questions',
@@ -475,12 +468,12 @@ class _MeScreenState extends ConsumerState<MeScreen> {
                       setState(() => _contentTab = 'saved');
                       _loadPosts();
                     },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 9),
-                      decoration: BoxDecoration(
-                        color: _contentTab == 'saved' ? cn.accent : Colors.transparent,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: _contentTab == 'saved'
+                          ? ClayDecorations.button(context, color: cn.accent, radius: 999)
+                          : const BoxDecoration(),
                       alignment: Alignment.center,
                       child: Text(
                         'Saved',
@@ -571,23 +564,19 @@ class _ShortcutChip extends StatelessWidget {
     return LiquidTap(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-        decoration: BoxDecoration(
-          color: accent ? cn.accentSoft : cn.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: accent ? cn.accent : cn.borderSubtle),
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: ClayDecorations.pill(context, active: accent, radius: 16),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: accent ? cn.accentLight : cn.textMuted),
-            const SizedBox(width: 6),
+            Icon(icon, size: 16, color: accent ? Colors.white : cn.accent),
+            const SizedBox(width: 7),
             Text(
               label,
               style: TextStyle(
                 fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: accent ? cn.accentLight : cn.textPrimary,
+                fontWeight: FontWeight.w800,
+                color: accent ? Colors.white : cn.textPrimary,
               ),
             ),
           ],

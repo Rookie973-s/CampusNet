@@ -83,7 +83,10 @@ class AnswerSerializer(serializers.ModelSerializer):
             return None
         req = self.context.get("request")
         url = obj.image.url
-        return req.build_absolute_uri(url) if req else url
+        abs_url = req.build_absolute_uri(url) if req else url
+        if abs_url.startswith("http://") and not any(h in abs_url for h in ("127.0.0.1", "localhost")):
+            abs_url = "https://" + abs_url[len("http://"):]
+        return abs_url
 
     def get_can_delete(self, obj):
         from .permissions import is_moderator
@@ -119,7 +122,10 @@ class QuestionMediaSerializer(serializers.ModelSerializer):
     def get_url(self, obj):
         request = self.context.get("request")
         url = obj.file.url
-        return request.build_absolute_uri(url) if request else url
+        abs_url = request.build_absolute_uri(url) if request else url
+        if abs_url.startswith("http://") and not any(h in abs_url for h in ("127.0.0.1", "localhost")):
+            abs_url = "https://" + abs_url[len("http://"):]
+        return abs_url
 
 
 class QuestionListSerializer(serializers.ModelSerializer):

@@ -8,6 +8,7 @@ import '../../core/models/models.dart';
 import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/clay_system.dart';
 import '../../core/widgets/morphism_widgets.dart';
 import '../../core/widgets/skeleton_widgets.dart';
 import '../auth/auth_provider.dart';
@@ -106,28 +107,27 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         backgroundColor: c.background,
         titleSpacing: 0,
         title: Container(
-          height: 44,
+          height: 46,
           margin: const EdgeInsets.only(right: 14),
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: c.surface,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: c.divider),
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: ClayDecorations.input(context, radius: 999),
           child: Row(
             children: [
-              Icon(Icons.search_rounded, size: 19, color: c.accent),
+              ClayIconPill(icon: Icons.search_rounded, color: c.accent, size: 30, iconSize: 16),
               const SizedBox(width: 8),
               Expanded(
                 child: TextField(
                   controller: _ctrl,
                   autofocus: true,
                   onChanged: _onChanged,
-                  style: TextStyle(color: c.textPrimary, fontSize: 14.5),
+                  style: TextStyle(color: c.textPrimary, fontSize: 14.5, fontWeight: FontWeight.w600),
                   decoration: InputDecoration(
                     hintText: 'Search people, posts, communities...',
                     hintStyle: TextStyle(color: c.textSecondary, fontSize: 14),
                     border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    filled: false,
                     isDense: true,
                   ),
                 ),
@@ -138,7 +138,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     _ctrl.clear();
                     _onChanged('');
                   },
-                  child: Icon(Icons.close_rounded, size: 18, color: c.textSecondary),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Icon(Icons.close_rounded, size: 18, color: c.textSecondary),
+                  ),
                 ),
             ],
           ),

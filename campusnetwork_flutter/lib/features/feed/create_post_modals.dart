@@ -7,6 +7,7 @@ import '../../core/models/models.dart';
 import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/clay_system.dart';
 import '../../core/widgets/morphism_widgets.dart';
 import '../auth/auth_provider.dart';
 import 'feed_screen.dart';
@@ -177,11 +178,7 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.92),
-        decoration: BoxDecoration(
-          color: cn.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          border: Border(top: BorderSide(color: cn.borderBright)),
-        ),
+        decoration: ClayDecorations.modal(context),
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 14, 20, 26),
           child: Column(
@@ -189,21 +186,16 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
             children: [
               Center(
                 child: Container(
-                  width: 38,
+                  width: 40,
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 14),
-                  decoration: BoxDecoration(color: cn.borderBright, borderRadius: BorderRadius.circular(99)),
+                  decoration: BoxDecoration(color: cn.divider, borderRadius: BorderRadius.circular(99)),
                 ),
               ),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(color: cn.accentSoft, borderRadius: BorderRadius.circular(14)),
-                    child: Icon(Icons.menu_book_rounded, color: cn.accentLight, size: 22),
-                  ),
+                  ClayIconPill(icon: Icons.menu_book_rounded, color: cn.accent, size: 44),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -223,21 +215,17 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
               const SizedBox(height: 16),
               Text('Headline (optional)', style: TextStyle(color: cn.textMuted, fontWeight: FontWeight.w700, fontSize: 12.5)),
               const SizedBox(height: 6),
-              _InputBox(controller: _title, hint: 'Short summary of your question or post...'),
+              _InputBox(controller: _title, hint: 'Short summary of your question or post...', icon: Icons.title_rounded),
               const SizedBox(height: 12),
               Text('Your question', style: TextStyle(color: cn.textMuted, fontWeight: FontWeight.w700, fontSize: 12.5)),
               const SizedBox(height: 6),
-              // Subtle jotter-lined writing area
+              // Subtle jotter-lined claymorphism writing area
               Container(
-                decoration: BoxDecoration(
-                  color: cn.surfaceRecessed,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: cn.borderSubtle),
-                ),
+                decoration: ClayDecorations.input(context, radius: 20),
                 clipBehavior: Clip.antiAlias,
                 child: CustomPaint(
                   painter: _JotterLinesPainter(
-                    lineColor: cn.borderSubtle.withValues(alpha: context.isDark ? 0.45 : 0.65),
+                    lineColor: cn.borderSubtle.withValues(alpha: context.isDark ? 0.40 : 0.55),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -258,10 +246,10 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(color: cn.surfaceRecessed, borderRadius: BorderRadius.circular(12)),
+                decoration: ClayDecorations.recessed(context, radius: 14),
                 child: Row(
                   children: [
                     _FmtBtn(label: 'B', bold: true, onTap: () => _insert(' **bold** ')),
@@ -288,12 +276,8 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
                     child: LiquidTap(
                       onTap: () => _pickImages(maxImages),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 11),
-                        decoration: BoxDecoration(
-                          color: cn.surfaceHigh,
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: cn.borderSubtle),
-                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: ClayDecorations.pill(context),
                         alignment: Alignment.center,
                         child: Text(
                           'Add photos ${_images.length}/$maxImages',
@@ -307,12 +291,8 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
                     child: LiquidTap(
                       onTap: () => _pickVideo(isVerified),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 11),
-                        decoration: BoxDecoration(
-                          color: cn.surfaceHigh,
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: cn.borderSubtle),
-                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: ClayDecorations.pill(context),
                         alignment: Alignment.center,
                         child: Text(
                           _video != null ? 'Video Ready ✓' : (isVerified ? 'Add video' : 'Video (Verified)'),
@@ -334,7 +314,7 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
                 placeholder: 'All Faculties',
               ),
               const SizedBox(height: 10),
-              _InputBox(controller: _tags, hint: 'Tags (e.g. MTH201, exams)'),
+              _InputBox(controller: _tags, hint: 'Tags (e.g. MTH201, exams)', icon: Icons.tag_rounded),
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -342,26 +322,19 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
                     child: LiquidTap(
                       onTap: () => Navigator.of(context).pop(),
                       child: Container(
-                        height: 48,
-                        decoration: BoxDecoration(color: cn.surfaceHigh, borderRadius: BorderRadius.circular(999)),
+                        height: 50,
+                        decoration: ClayDecorations.pill(context),
                         alignment: Alignment.center,
-                        child: Text('Cancel', style: TextStyle(fontWeight: FontWeight.w700, color: cn.textPrimary)),
+                        child: Text('Cancel', style: TextStyle(fontWeight: FontWeight.w800, color: cn.textPrimary)),
                       ),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: LiquidTap(
+                    child: ClayButton(
+                      label: _busy ? 'Posting...' : 'Post',
+                      busy: _busy,
                       onTap: _busy ? null : () => _submit(depts, wordLimit),
-                      child: Container(
-                        height: 48,
-                        decoration: BoxDecoration(color: cn.accent, borderRadius: BorderRadius.circular(999)),
-                        alignment: Alignment.center,
-                        child: Text(
-                          _busy ? 'Posting...' : 'Post',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-                        ),
-                      ),
                     ),
                   ),
                 ],
@@ -440,11 +413,7 @@ class _CreatePollSheetState extends ConsumerState<_CreatePollSheet> {
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
-        decoration: BoxDecoration(
-          color: cn.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          border: Border(top: BorderSide(color: cn.borderBright)),
-        ),
+        decoration: ClayDecorations.modal(context),
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 14, 20, 26),
           child: Column(
@@ -452,22 +421,22 @@ class _CreatePollSheetState extends ConsumerState<_CreatePollSheet> {
             children: [
               Center(
                 child: Container(
-                  width: 38,
+                  width: 40,
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 14),
-                  decoration: BoxDecoration(color: cn.borderBright, borderRadius: BorderRadius.circular(99)),
+                  decoration: BoxDecoration(color: cn.divider, borderRadius: BorderRadius.circular(99)),
                 ),
               ),
               Row(
                 children: [
-                  Icon(Icons.bar_chart_rounded, color: cn.accentLight, size: 24),
-                  const SizedBox(width: 10),
+                  ClayIconPill(icon: Icons.bar_chart_rounded, color: cn.success, size: 42),
+                  const SizedBox(width: 12),
                   Expanded(child: Text('Create a Poll', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: cn.textPrimary))),
                   IconButton(icon: Icon(Icons.close_rounded, color: cn.textMuted), onPressed: () => Navigator.of(context).pop()),
                 ],
               ),
-              const SizedBox(height: 12),
-              _InputBox(controller: _question, hint: 'e.g. Should we write tests today?'),
+              const SizedBox(height: 14),
+              _InputBox(controller: _question, hint: 'e.g. Should we write tests today?', icon: Icons.help_outline_rounded),
               const SizedBox(height: 12),
               Text('Poll Options (2–6)', style: TextStyle(color: cn.textMuted, fontWeight: FontWeight.w700, fontSize: 12.5)),
               const SizedBox(height: 6),
@@ -502,18 +471,11 @@ class _CreatePollSheetState extends ConsumerState<_CreatePollSheet> {
                 placeholder: 'All Faculties',
               ),
               const SizedBox(height: 16),
-              LiquidTap(
+              ClayButton(
+                label: _busy ? 'Publishing...' : 'Publish Poll',
+                busy: _busy,
+                color: cn.success,
                 onTap: _busy ? null : () => _submit(depts),
-                child: Container(
-                  width: double.infinity,
-                  height: 48,
-                  decoration: BoxDecoration(color: cn.accent, borderRadius: BorderRadius.circular(999)),
-                  alignment: Alignment.center,
-                  child: Text(
-                    _busy ? 'Publishing...' : 'Publish Poll',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-                  ),
-                ),
               ),
             ],
           ),
@@ -524,32 +486,17 @@ class _CreatePollSheetState extends ConsumerState<_CreatePollSheet> {
 }
 
 class _InputBox extends StatelessWidget {
-  const _InputBox({required this.controller, required this.hint});
+  const _InputBox({required this.controller, required this.hint, this.icon});
   final TextEditingController controller;
   final String hint;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
-    final cn = context.cn;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-      decoration: BoxDecoration(
-        color: cn.surfaceRecessed,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: cn.borderSubtle),
-      ),
-      child: TextField(
-        controller: controller,
-        style: TextStyle(fontSize: 14.5, color: cn.textPrimary),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: TextStyle(color: cn.textFaint, fontSize: 13.5),
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          filled: false,
-        ),
-      ),
+    return ClayTextField(
+      controller: controller,
+      hint: hint,
+      prefixIcon: icon,
     );
   }
 }

@@ -159,11 +159,27 @@ class _AppShellState extends ConsumerState<AppShell> with SingleTickerProviderSt
         onNotification: (n) => chromeCtrl.handleScroll(n, keyboardOpen: keyboardOpen || _fabOpen),
         child: Stack(
           children: [
-            // Main Screen Content
+            // Main Screen Content with smooth fade + lift transition when switching tabs
             Positioned.fill(
               child: Padding(
                 padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top),
-                child: widget.navigationShell,
+                child: TweenAnimationBuilder<double>(
+                  key: ValueKey<int>(idx),
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutCubic,
+                  builder: (_, t, child) => Opacity(
+                    opacity: (0.25 + 0.75 * t).clamp(0.0, 1.0),
+                    child: Transform.translate(
+                      offset: Offset(0, 14 * (1 - t)),
+                      child: Transform.scale(
+                        scale: 0.985 + 0.015 * t,
+                        child: child,
+                      ),
+                    ),
+                  ),
+                  child: widget.navigationShell,
+                ),
               ),
             ),
 
@@ -601,40 +617,56 @@ class _NavTab extends StatelessWidget {
     final c = context.cn;
     return Expanded(
       child: LiquidTap(
+        scaleDown: 0.88,
         onTap: onTap,
         child: SizedBox(
-          height: 52,
+          height: 54,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Icon(active ? activeIcon : icon, size: 22, color: active ? c.accent : c.textSecondary),
-                  if (hasUnread)
-                    Positioned(
-                      top: -2,
-                      right: -4,
-                      child: Container(
-                        width: 9,
-                        height: 9,
-                        decoration: BoxDecoration(
-                          color: c.danger,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: c.surface, width: 1.5),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.easeOutCubic,
+                padding: EdgeInsets.symmetric(horizontal: active ? 14 : 6, vertical: 4),
+                decoration: BoxDecoration(
+                  color: active ? c.accent.withValues(alpha: 0.16) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    AnimatedScale(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutBack,
+                      scale: active ? 1.12 : 1.0,
+                      child: Icon(active ? activeIcon : icon, size: 22, color: active ? c.accent : c.textSecondary),
+                    ),
+                    if (hasUnread)
+                      Positioned(
+                        top: -2,
+                        right: -4,
+                        child: Container(
+                          width: 9,
+                          height: 9,
+                          decoration: BoxDecoration(
+                            color: c.danger,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: c.surface, width: 1.5),
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                label,
+              const SizedBox(height: 1),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 200),
                 style: TextStyle(
                   fontSize: 10.5,
-                  fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                  fontWeight: active ? FontWeight.w900 : FontWeight.w600,
                   color: active ? c.accent : c.textSecondary,
                 ),
+                child: Text(label),
               ),
             ],
           ),

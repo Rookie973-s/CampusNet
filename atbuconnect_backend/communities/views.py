@@ -97,15 +97,16 @@ class CommunityViewSet(viewsets.ModelViewSet):
             defaults={"role": CommunityMembership.Role.OWNER, "notif_level": CommunityMembership.NotifLevel.ALL},
         )
 
-    def partial_update(self, request, *args, **kwargs):
+    def update(self, request, *args, **kwargs):
         comm = self.get_object()
         m = _get_membership(comm, request.user)
         if not (_is_platform_admin(request.user) or (m and m.can_manage())):
             return Response({"detail": "Only community owners or admins can update this community."}, status=403)
-        return super().partial_update(request, *args, **kwargs)
+        return super().update(request, *args, **kwargs)
 
-    def update(self, request, *args, **kwargs):
-        return self.partial_update(request, *args, **kwargs)
+    def partial_update(self, request, *args, **kwargs):
+        kwargs["partial"] = True
+        return self.update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         comm = self.get_object()

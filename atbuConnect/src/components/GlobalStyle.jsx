@@ -20,46 +20,50 @@ const GlobalStyle = () => (
        Shadows are blue-tinted so light mode never looks dirty-grey and dark mode
        never collapses into a black blob. */
     .light {
-      --bg: #F4F5F7;
+      --bg: #EFF3F9;
       --surf: #FFFFFF;
-      --surfH: #F3F4F6;
-      --surfA: #E5E7EB;
-      --txt: #111827;
-      --mut: #4B5563;
-      --faint: #6B7280;
-      --brd: rgba(17,24,39,.09);
-      --brdS: rgba(17,24,39,.18);
+      --surfH: #F1F5FA;
+      --surfA: #E4ECF5;
+      --txt: #0F172A;
+      --mut: #475569;
+      --faint: #64748B;
+      --brd: rgba(255,255,255,.92);
+      --brdS: rgba(15,23,42,.12);
       --accent: #2563EB;
-      --edge-hi: rgba(255,255,255,.92);
-      --edge-lo: rgba(17,24,39,.08);
-      --sh-1: 0 1px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, 0 3px 8px rgba(17,24,39,.07), 0 10px 22px -10px rgba(17,24,39,.14);
-      --sh-2: 0 1px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, 0 6px 14px rgba(17,24,39,.09), 0 18px 34px -12px rgba(17,24,39,.20);
-      --sh-3: 0 1px 0 var(--edge-hi) inset, 0 12px 28px -6px rgba(17,24,39,.18), 0 28px 56px -14px rgba(17,24,39,.26);
-      --sh-in: inset 0 2px 5px rgba(17,24,39,.08);
-      --sh-press: inset 0 2px 6px rgba(17,24,39,.14);
-      --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 26px;
+      --edge-hi: rgba(255,255,255,.98);
+      --edge-lo: rgba(15,23,42,.08);
+      --clay-grad: linear-gradient(155deg, #FFFFFF 0%, #F8FAFE 58%, #EEF3FA 100%);
+      --clay-inp-grad: linear-gradient(160deg, #FFFFFF 0%, #F7FAFF 100%);
+      --sh-1: 0 2px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, -3px -3px 8px rgba(255,255,255,.92), 0 10px 24px -6px rgba(15,23,42,.12), 0 3px 8px rgba(15,23,42,.06);
+      --sh-2: 0 2px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, -4px -4px 10px rgba(255,255,255,.95), 0 16px 34px -8px rgba(15,23,42,.16), 0 5px 12px rgba(15,23,42,.08);
+      --sh-3: 0 2px 0 var(--edge-hi) inset, 0 22px 48px -12px rgba(15,23,42,.24), 0 8px 18px rgba(15,23,42,.10);
+      --sh-in: inset 2px 3px 7px rgba(15,23,42,.10), inset -2px -2px 6px rgba(255,255,255,.92);
+      --sh-press: inset 2px 4px 8px rgba(15,23,42,.15), inset -1px -1px 4px rgba(255,255,255,.85);
+      --r-sm: 14px; --r-md: 18px; --r-lg: 24px; --r-xl: 30px;
       --ease-liquid: cubic-bezier(.22,1.15,.36,1);
     }
 
     .dark {
-      --bg: #0A0A0D;        /* True neutral dark (not dark blue) */
-      --surf: #141418;
-      --surfH: #1C1C22;
-      --surfA: #24242D;
-      --txt: #F3F4F6;
-      --mut: #A1A1AA;
-      --faint: #71717A;
-      --brd: rgba(255,255,255,.08);
+      --bg: #0A0D12;
+      --surf: #151B24;
+      --surfH: #1D2532;
+      --surfA: #263040;
+      --txt: #EDF2F7;
+      --mut: #94A3B8;
+      --faint: #64748B;
+      --brd: rgba(255,255,255,.10);
       --brdS: rgba(255,255,255,.16);
-      --accent: #60A5FA;
-      --edge-hi: rgba(255,255,255,.06);
-      --edge-lo: rgba(0,0,0,.55);
-      --sh-1: 0 2px 6px rgba(0,0,0,.35), 0 8px 18px -8px rgba(0,0,0,.6);
-      --sh-2: 0 4px 12px rgba(0,0,0,.45), 0 18px 34px -12px rgba(0,0,0,.72);
-      --sh-3: 0 12px 26px rgba(0,0,0,.55), 0 32px 64px -16px rgba(0,0,0,.82);
-      --sh-in: inset 0 2px 5px rgba(0,0,0,.45);
-      --sh-press: inset 0 2px 6px rgba(0,0,0,.55);
-      --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 26px;
+      --accent: #3B82F6;
+      --edge-hi: rgba(255,255,255,.10);
+      --edge-lo: rgba(0,0,0,.58);
+      --clay-grad: linear-gradient(155deg, #1B2330 0%, #151B24 55%, #10151D 100%);
+      --clay-inp-grad: linear-gradient(160deg, #1E2735 0%, #141A24 100%);
+      --sh-1: 0 1.5px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, -2px -2px 6px rgba(255,255,255,.035), 0 10px 24px -6px rgba(0,0,0,.58), 0 3px 8px rgba(0,0,0,.35);
+      --sh-2: 0 1.5px 0 var(--edge-hi) inset, 0 -2px 0 var(--edge-lo) inset, -3px -3px 8px rgba(255,255,255,.045), 0 18px 36px -8px rgba(0,0,0,.70), 0 6px 14px rgba(0,0,0,.42);
+      --sh-3: 0 2px 0 var(--edge-hi) inset, 0 24px 52px -12px rgba(0,0,0,.82), 0 10px 22px rgba(0,0,0,.52);
+      --sh-in: inset 2px 3px 8px rgba(0,0,0,.55), inset -1px -1px 4px rgba(255,255,255,.04);
+      --sh-press: inset 2px 4px 10px rgba(0,0,0,.68), inset -1px -1px 3px rgba(255,255,255,.03);
+      --r-sm: 14px; --r-md: 18px; --r-lg: 24px; --r-xl: 30px;
       --ease-liquid: cubic-bezier(.22,1.15,.36,1);
     }
 
@@ -102,56 +106,57 @@ const GlobalStyle = () => (
     linear-gradient(180deg,rgba(0,8,20,.42) 0%,rgba(0,8,20,.22) 40%,rgba(0,8,20,.42) 100%);
 }
 
-    /* ── CARDS ── */
-    .card{background:var(--surf);border:1px solid var(--brd);border-radius:var(--r-lg);box-shadow:var(--sh-1);transition:box-shadow .25s var(--ease-liquid),transform .25s var(--ease-liquid)}
-    .card:hover{box-shadow:var(--sh-2);transform:translateY(-2px)}
+    /* ── CARDS & RAISED CLAY SURFACES ── */
+    .card,.raised,.fcard{background:var(--clay-grad);border:1.5px solid var(--brd);border-radius:var(--r-lg);box-shadow:var(--sh-1);transition:box-shadow .24s var(--ease-liquid),transform .24s var(--ease-liquid)}
+    .card:hover,.fcard:hover{box-shadow:var(--sh-2);transform:translateY(-2px)}
     .card:active{transform:translateY(0);box-shadow:var(--sh-1)}
 
-    /* ── PILLS ── */
-    .pill{padding:8px 18px;min-height:38px;border-radius:999px;font-size:13px;font-weight:600;background:var(--surf);border:1px solid var(--brd);color:var(--mut);cursor:pointer;transition:all .18s var(--ease-liquid);white-space:nowrap;box-shadow:var(--sh-1)}
-    .pill:hover{color:var(--txt)}
-    .pill:active{transform:scale(.97);box-shadow:var(--sh-press)}
-    .pill.on{background:var(--surfH);color:var(--accent);border-color:var(--brdS);box-shadow:var(--sh-in)}
+    /* ── PILLS (Soft 3D Clay Chips) ── */
+    .pill{padding:9px 18px;min-height:40px;border-radius:999px;font-size:13px;font-weight:700;background:var(--clay-grad);border:1.5px solid var(--brd);color:var(--mut);cursor:pointer;transition:all .18s var(--ease-liquid);white-space:nowrap;box-shadow:var(--sh-1)}
+    .pill:hover{color:var(--txt);transform:translateY(-1px);box-shadow:var(--sh-2)}
+    .pill:active{transform:scale(.95);box-shadow:var(--sh-press)}
+    .pill.on{background:linear-gradient(180deg,#4F8DF9 0%,#2563EB 55%,#1D4ED8 100%);color:#fff;border-color:rgba(255,255,255,.32);box-shadow:0 2px 0 rgba(255,255,255,.32) inset,0 -2px 0 rgba(0,0,0,.22) inset,0 8px 18px -4px rgba(37,99,235,.48)}
 
-    /* ── BUTTONS (clean modern flat in light mode, sleek elevated in dark mode) ── */
-    .btn{min-height:44px;height:44px;padding:0 22px;border-radius:var(--r-md);font-size:14px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:transform .16s ease,box-shadow .18s ease,background .16s ease,border-color .16s ease;border:1px solid var(--brdS);box-shadow:none}
-    .btn:active:not(:disabled){transform:scale(.98)}
+    /* ── BUTTONS (Global Soft 3D Claymorphism Buttons) ── */
+    .btn{min-height:46px;height:46px;padding:0 22px;border-radius:999px;font-size:14px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:transform .18s var(--ease-liquid),box-shadow .2s ease,background .18s ease,border-color .18s ease;border:1.5px solid var(--brd);box-shadow:var(--sh-1)}
+    .btn:active:not(:disabled){transform:scale(.95);box-shadow:var(--sh-press)}
     .btn:disabled{opacity:.55;cursor:not-allowed}
-    .btn-pri{background:#2563EB;color:#fff;border-color:transparent}
-    .btn-pri:hover:not(:disabled){background:#1D4ED8;transform:translateY(-1px)}
-    .btn-gold{background:#2563EB;color:#fff;border:none}
-    .btn-gold:hover:not(:disabled){background:#1D4ED8;transform:translateY(-1px)}
-    .btn-navy{background:#111827;color:#fff;border-color:transparent}
-    .btn-navy:hover:not(:disabled){background:#1F2937;transform:translateY(-1px)}
-    .dark .btn-navy{background:#F3F4F6;color:#0A0A0D}
-    .dark .btn-navy:hover:not(:disabled){background:#FFFFFF}
-    .btn-out{background:var(--surf);color:var(--txt);border:1px solid var(--brdS)}
-    .btn-out:hover{background:var(--surfH)}
+    .btn-pri{background:linear-gradient(180deg,#5294FF 0%,#2563EB 55%,#1D4ED8 100%);color:#fff;border-color:rgba(255,255,255,.34);box-shadow:0 2px 0 rgba(255,255,255,.35) inset,0 -2px 0 rgba(0,0,0,.22) inset,0 10px 22px -6px rgba(37,99,235,.52)}
+    .btn-pri:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 2px 0 rgba(255,255,255,.4) inset,0 14px 26px -6px rgba(37,99,235,.62)}
+    .btn-gold{background:linear-gradient(180deg,#5294FF 0%,#2563EB 55%,#1D4ED8 100%);color:#fff;border-color:rgba(255,255,255,.34);box-shadow:0 2px 0 rgba(255,255,255,.35) inset,0 10px 22px -6px rgba(37,99,235,.52)}
+    .btn-gold:hover:not(:disabled){transform:translateY(-2px)}
+    .btn-navy{background:linear-gradient(180deg,#253348 0%,#111827 55%,#090E17 100%);color:#fff;border-color:rgba(255,255,255,.18);box-shadow:0 2px 0 rgba(255,255,255,.22) inset,0 -2px 0 rgba(0,0,0,.4) inset,0 10px 22px -6px rgba(15,23,42,.45)}
+    .btn-navy:hover:not(:disabled){transform:translateY(-2px)}
+    .dark .btn-navy{background:linear-gradient(180deg,#FFFFFF 0%,#E5ECF6 100%);color:#0A0D12;border-color:rgba(255,255,255,.9);box-shadow:0 2px 0 #fff inset,0 10px 22px -6px rgba(0,0,0,.6)}
+    .btn-out{background:var(--clay-grad);color:var(--txt);border:1.5px solid var(--brd);box-shadow:var(--sh-1)}
+    .btn-out:hover{transform:translateY(-1px);box-shadow:var(--sh-2)}
     .btn-ghost{background:transparent;color:var(--mut);box-shadow:none;border-color:transparent}
-    .btn-ghost:hover{color:var(--txt);background:var(--surfH)}
+    .btn-ghost:hover{color:var(--txt);background:var(--surfH);box-shadow:var(--sh-1)}
 
-    /* ── INPUTS (clean crisp modern inputs, no skeuomorphic inner shadows in light mode) ── */
-    .inp{width:100%;height:46px;padding:0 14px;border-radius:var(--r-sm);border:1px solid var(--brdS);background:var(--surf);color:var(--txt);font-size:14px;font-family:inherit;transition:border-color .16s,box-shadow .16s,background .16s;box-shadow:none}
-    .dark .inp{background:var(--surfH)}
-    textarea.inp{padding:12px 14px;height:auto;line-height:1.55}
-    .inp.err{border-color:#EF4444}
+    /* ── INPUTS (Global Soft 3D Claymorphism Capsules matching reference!) ── */
+    .inp,input[type="text"],input[type="email"],input[type="password"],input[type="search"],input[type="url"],input[type="tel"],input[type="date"],textarea,select.inp{
+      width:100%;height:48px;padding:0 16px;border-radius:var(--r-md);border:1.5px solid var(--brd);
+      background:var(--clay-inp-grad);color:var(--txt);font-size:14.5px;font-weight:500;font-family:inherit;
+      transition:border-color .18s,box-shadow .2s,transform .18s;box-shadow:var(--sh-1)
+    }
+    textarea.inp,textarea{padding:13px 16px;height:auto;min-height:104px;resize:vertical;line-height:1.55}
+    .inp.err{border-color:#EF4444;box-shadow:0 0 0 3px rgba(239,68,68,.18),var(--sh-1)}
     .field-err{color:#DC2626;font-size:12px;font-weight:600;margin-top:5px}
     .dark .field-err{color:#F87171}
-    .inp:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.18);outline:none}
-    .inp::placeholder{color:var(--faint)}
-    textarea.inp{height:auto;min-height:100px;padding:12px 14px;resize:vertical;line-height:1.5}
-    select.inp{appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
+    .inp:focus,input:focus,textarea:focus,select.inp:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(37,99,235,.20),var(--sh-2);outline:none}
+    .inp::placeholder,input::placeholder,textarea::placeholder{color:var(--faint)}
+    select.inp{appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
 
     /* ── TAGS ── */
-    .tag{padding:4px 12px;border-radius:8px;background:var(--surfA);border:1px solid var(--brd);color:var(--mut);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;display:inline-block}
-    .tag:hover{background:rgba(59,130,246,.15);color:#3B82F6}
+    .tag{padding:5px 12px;border-radius:999px;background:var(--clay-grad);border:1px solid var(--brd);color:var(--mut);font-size:12px;font-weight:700;cursor:pointer;transition:all .16s;display:inline-block;box-shadow:var(--sh-1)}
+    .tag:hover{background:rgba(59,130,246,.15);color:#3B82F6;transform:translateY(-1px)}
 
-    /* ── MODAL ── */
-    .overlay{position:fixed;inset:0;background:rgba(6,18,32,.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .2s ease both}
+    /* ── MODAL (Claymorphic Dome Surface) ── */
+    .overlay{position:fixed;inset:0;background:rgba(6,14,28,.62);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .2s ease both}
     .overlay.closing{animation:fadeOut .18s ease both}
     @keyframes fadeIn{from{opacity:0}to{opacity:1}}
     .overlay.closing .modal{animation:popOut .18s ease both}
-    .modal{background:var(--surf);width:100%;border-radius:var(--r-xl);box-shadow:var(--sh-3);overflow:hidden;animation:popIn .3s var(--ease-liquid) both;border:1px solid var(--brd);max-height:min(90vh,calc(100dvh - 32px));overflow-y:auto;position:relative}
+    .modal{background:var(--clay-grad);width:100%;border-radius:var(--r-xl);box-shadow:var(--sh-3);overflow:hidden;animation:popIn .3s var(--ease-liquid) both;border:1.5px solid var(--brd);max-height:min(90vh,calc(100dvh - 32px));overflow-y:auto;position:relative}
     .modal-x{position:absolute;top:12px;right:12px;z-index:5;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--surfH);border:1px solid var(--brdS);color:var(--txt);box-shadow:var(--sh-1);transition:transform .15s var(--ease-liquid),background .15s}
     .modal-x:hover{background:var(--surfA)}
     .modal-x:active{transform:scale(.92);box-shadow:var(--sh-press)}

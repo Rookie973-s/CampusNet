@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../motion/liquid_motion.dart';
 import '../theme/app_theme.dart';
+import '../theme/clay_system.dart';
 
 /// ============================================================================
 /// 1. CURVED ORGANIC GREEN SINGLE-STEP FORM (Login, Sign Up, Create Community)
@@ -286,7 +287,7 @@ class SageInputField extends StatelessWidget {
   }
 }
 
-/// Full-width deep-forest-green pill button (matches Image 1).
+/// Full-width deep-forest-green inflated 3D clay pill button.
 class ForestPillButton extends StatelessWidget {
   const ForestPillButton({super.key, required this.label, this.onTap});
   final String label;
@@ -299,17 +300,12 @@ class ForestPillButton extends StatelessWidget {
       enabled: onTap != null,
       child: Container(
         width: double.infinity,
-        height: 52,
-        decoration: BoxDecoration(
-          color: onTap == null ? const Color(0xFF2E6B47).withValues(alpha: 0.5) : const Color(0xFF2E6B47),
-          borderRadius: BorderRadius.circular(999),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF1F5638).withValues(alpha: 0.32),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
+        height: 54,
+        decoration: ClayDecorations.button(
+          context,
+          color: const Color(0xFF2E6B47),
+          radius: 999,
+          disabled: onTap == null,
         ),
         alignment: Alignment.center,
         child: Text(
@@ -763,24 +759,33 @@ class StepCardInput extends StatelessWidget {
           ),
         ],
         Container(
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          padding: EdgeInsets.symmetric(horizontal: 14, vertical: maxLines > 1 ? 6 : 2),
+          decoration: ClayDecorations.input(context, radius: 18, fillColor: cardBg),
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: maxLines > 1 ? 6 : 4),
           child: Row(
             crossAxisAlignment: maxLines > 1 ? CrossAxisAlignment.start : CrossAxisAlignment.center,
             children: [
               Padding(
-                padding: EdgeInsets.only(top: maxLines > 1 ? 10 : 0, right: 10),
-                child: Icon(icon, size: 19, color: hintColor),
+                padding: EdgeInsets.only(top: maxLines > 1 ? 6 : 0, right: 10),
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF1E7266), Color(0xFF0E4D45)],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0E4D45).withValues(alpha: 0.34),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Icon(icon, size: 17, color: Colors.white),
+                ),
               ),
               Expanded(
                 child: TextField(
@@ -798,7 +803,7 @@ class StepCardInput extends StatelessWidget {
                     focusedBorder: InputBorder.none,
                     filled: false,
                     isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 13),
                   ),
                 ),
               ),
@@ -819,7 +824,7 @@ class StepCardInput extends StatelessWidget {
   }
 }
 
-/// Dark-teal rounded-rectangle primary button matching Image 2 ("Steps Form").
+/// Dark-teal inflated 3D clay primary button matching Steps Form.
 class StepPrimaryButton extends StatelessWidget {
   const StepPrimaryButton({super.key, required this.label, this.onTap});
   final String label;
@@ -832,17 +837,12 @@ class StepPrimaryButton extends StatelessWidget {
       enabled: onTap != null,
       child: Container(
         width: double.infinity,
-        height: 52,
-        decoration: BoxDecoration(
-          color: onTap == null ? const Color(0xFF0E4D45).withValues(alpha: 0.5) : const Color(0xFF0E4D45),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF0E4D45).withValues(alpha: 0.28),
-              blurRadius: 14,
-              offset: const Offset(0, 5),
-            ),
-          ],
+        height: 54,
+        decoration: ClayDecorations.button(
+          context,
+          color: const Color(0xFF0E4D45),
+          radius: 18,
+          disabled: onTap == null,
         ),
         alignment: Alignment.center,
         child: Text(

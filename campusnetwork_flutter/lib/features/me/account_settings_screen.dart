@@ -8,6 +8,7 @@ import '../../core/models/models.dart';
 import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/clay_system.dart';
 import '../../core/widgets/morphism_widgets.dart';
 import '../auth/auth_provider.dart';
 
@@ -226,35 +227,36 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                   style: TextStyle(color: cn.textMuted, fontSize: 13.5, height: 1.4),
                 ),
                 const SizedBox(height: 14),
-                TextField(
+                ClayTextField(
                   controller: pwdCtrl,
+                  label: 'Confirm your password',
+                  hint: 'Enter current password',
+                  prefixIcon: Icons.lock_outline_rounded,
+                  iconColor: cn.danger,
                   obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Confirm your password'),
                 ),
                 const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: cn.danger),
-                    onPressed: busy
-                        ? null
-                        : () async {
-                            setS(() => busy = true);
-                            try {
-                              await ref.read(apiClientProvider).dio.delete(
-                                    '/auth/me/',
-                                    data: {'password': pwdCtrl.text},
-                                  );
-                              await ref.read(authProvider.notifier).logout();
-                              if (ctx.mounted) Navigator.of(ctx).pop();
-                              if (mounted) context.go('/landing');
-                            } catch (e) {
-                              setS(() => busy = false);
-                              _toast(parseApiError(e));
-                            }
-                          },
-                    child: Text(busy ? 'Deleting...' : 'Delete My Account'),
-                  ),
+                ClayButton(
+                  label: busy ? 'Deleting...' : 'Delete My Account',
+                  color: cn.danger,
+                  busy: busy,
+                  onTap: busy
+                      ? null
+                      : () async {
+                          setS(() => busy = true);
+                          try {
+                            await ref.read(apiClientProvider).dio.delete(
+                                  '/auth/me/',
+                                  data: {'password': pwdCtrl.text},
+                                );
+                            await ref.read(authProvider.notifier).logout();
+                            if (ctx.mounted) Navigator.of(ctx).pop();
+                            if (mounted) context.go('/landing');
+                          } catch (e) {
+                            setS(() => busy = false);
+                            _toast(parseApiError(e));
+                          }
+                        },
                 ),
               ],
             ),
@@ -350,22 +352,18 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                                 child: LiquidTap(
                                   onTap: () => ref.read(themeModeProvider.notifier).setMode(opt.$1),
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
-                                    decoration: BoxDecoration(
-                                      color: mode == opt.$1 ? cn.accentSoft : cn.surfaceRecessed,
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(color: mode == opt.$1 ? cn.accent : cn.borderSubtle),
-                                    ),
+                                    padding: const EdgeInsets.symmetric(vertical: 11),
+                                    decoration: ClayDecorations.pill(context, active: mode == opt.$1, radius: 16),
                                     child: Column(
                                       children: [
-                                        Icon(opt.$3, size: 18, color: mode == opt.$1 ? cn.accentLight : cn.textMuted),
+                                        Icon(opt.$3, size: 18, color: mode == opt.$1 ? Colors.white : cn.textMuted),
                                         const SizedBox(height: 4),
                                         Text(
                                           opt.$2,
                                           style: TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w800,
-                                            color: mode == opt.$1 ? cn.accentLight : cn.textPrimary,
+                                            color: mode == opt.$1 ? Colors.white : cn.textPrimary,
                                           ),
                                         ),
                                       ],
@@ -390,28 +388,28 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          Expanded(child: TextField(controller: _firstCtrl, decoration: const InputDecoration(labelText: 'First Name'))),
+                          Expanded(child: ClayTextField(controller: _firstCtrl, label: 'First Name', hint: 'First Name')),
                           const SizedBox(width: 10),
-                          Expanded(child: TextField(controller: _lastCtrl, decoration: const InputDecoration(labelText: 'Last Name'))),
+                          Expanded(child: ClayTextField(controller: _lastCtrl, label: 'Last Name', hint: 'Last Name')),
                         ],
                       ),
-                      const SizedBox(height: 10),
-                      TextField(controller: _userCtrl, decoration: const InputDecoration(labelText: 'Username', prefixText: '@')),
-                      const SizedBox(height: 10),
-                      TextField(
+                      const SizedBox(height: 12),
+                      ClayTextField(controller: _userCtrl, label: 'Username', hint: 'username', prefixText: '@', prefixIcon: Icons.alternate_email_rounded),
+                      const SizedBox(height: 12),
+                      ClayTextField(
                         controller: _phoneCtrl,
+                        label: 'Phone Number (optional)',
+                        hint: '080...',
+                        prefixIcon: Icons.phone_outlined,
                         keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(labelText: 'Phone Number (optional)', hintText: '080...'),
                       ),
-                      const SizedBox(height: 10),
-                      TextField(controller: _bioCtrl, maxLines: 3, decoration: const InputDecoration(labelText: 'Bio')),
-                      const SizedBox(height: 14),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _savingProfile ? null : _saveProfile,
-                          child: Text(_savingProfile ? 'Saving...' : 'Save Changes'),
-                        ),
+                      const SizedBox(height: 12),
+                      ClayTextField(controller: _bioCtrl, label: 'Bio', hint: 'Tell classmates about yourself...', prefixIcon: Icons.edit_note_rounded, maxLines: 3),
+                      const SizedBox(height: 16),
+                      ClayButton(
+                        label: _savingProfile ? 'Saving...' : 'Save Changes',
+                        busy: _savingProfile,
+                        onTap: _savingProfile ? null : _saveProfile,
                       ),
                     ],
                   ),
@@ -452,16 +450,22 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                         Row(
                           children: [
                             Expanded(
-                              child: TextField(
+                              child: ClayTextField(
                                 controller: _otpCtrl,
+                                hint: '6-digit code',
+                                prefixIcon: Icons.mark_email_read_outlined,
                                 keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(hintText: '6-digit code'),
                               ),
                             ),
                             const SizedBox(width: 8),
-                            ElevatedButton(
-                              onPressed: _verifyingOtp ? null : _verifyEmailOtp,
-                              child: Text(_verifyingOtp ? '...' : 'Verify'),
+                            SizedBox(
+                              width: 102,
+                              child: ClayButton(
+                                label: _verifyingOtp ? '...' : 'Verify',
+                                height: 48,
+                                busy: _verifyingOtp,
+                                onTap: _verifyingOtp ? null : _verifyEmailOtp,
+                              ),
                             ),
                           ],
                         ),
@@ -483,18 +487,16 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                     children: [
                       Text('Security & Password', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: cn.textPrimary)),
                       const SizedBox(height: 12),
-                      TextField(controller: _curPwdCtrl, obscureText: true, decoration: const InputDecoration(labelText: 'Current Password')),
-                      const SizedBox(height: 10),
-                      TextField(controller: _newPwdCtrl, obscureText: true, decoration: const InputDecoration(labelText: 'New Password')),
-                      const SizedBox(height: 10),
-                      TextField(controller: _confPwdCtrl, obscureText: true, decoration: const InputDecoration(labelText: 'Confirm New Password')),
-                      const SizedBox(height: 14),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _pwdBusy ? null : _changePassword,
-                          child: Text(_pwdBusy ? 'Updating...' : 'Update Password'),
-                        ),
+                      ClayTextField(controller: _curPwdCtrl, label: 'Current Password', hint: '••••••••', prefixIcon: Icons.lock_outline_rounded, obscureText: true),
+                      const SizedBox(height: 12),
+                      ClayTextField(controller: _newPwdCtrl, label: 'New Password', hint: '8+ characters', prefixIcon: Icons.vpn_key_outlined, obscureText: true),
+                      const SizedBox(height: 12),
+                      ClayTextField(controller: _confPwdCtrl, label: 'Confirm New Password', hint: 'Repeat new password', prefixIcon: Icons.check_circle_outline_rounded, obscureText: true),
+                      const SizedBox(height: 16),
+                      ClayButton(
+                        label: _pwdBusy ? 'Updating...' : 'Update Password',
+                        busy: _pwdBusy,
+                        onTap: _pwdBusy ? null : _changePassword,
                       ),
                     ],
                   ),

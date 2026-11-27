@@ -279,8 +279,19 @@ function FeedPage({ user, onLogin, toast, onViewQ }) {
         {!loading && !error && qs.length === 0 && (
           <div className="fcard" style={{ textAlign: "center", padding: "44px 20px" }}>
             <Ic n="msg" s={36} c="var(--faint)" />
-            <h3 style={{ margin: "12px 0 6px" }}>{t("feed.empty")}</h3>
-            <p style={{ color: "var(--mut)", fontSize: 14 }}>{t("feed.emptyHint")}</p>
+            <h3 style={{ margin: "12px 0 6px" }}>
+              {topicF && topicF !== "All" ? `No posts in ${topicF} yet` : t("feed.empty")}
+            </h3>
+            <p style={{ color: "var(--mut)", fontSize: 14, marginBottom: topicF && topicF !== "All" ? 14 : 0 }}>
+              {topicF && topicF !== "All"
+                ? `No one has published a post under ${topicF} yet. Switch back to All Faculties or start the first discussion.`
+                : t("feed.emptyHint")}
+            </p>
+            {topicF && topicF !== "All" && (
+              <button type="button" className="btn btn-out" onClick={() => setTopicF("All")}>
+                Show All Faculties
+              </button>
+            )}
           </div>
         )}
 

@@ -17,11 +17,17 @@ FACULTY_MODEL = "departments.Department"
 def private_storage():
     """PDFs live outside MEDIA_ROOT/MEDIA_URL so they are never served publicly.
 
-    Set LIBRARY_STORAGE to a dotted path (e.g. an S3-backed private storage class) when
-    the host's disk isn't persistent."""
+    Uses PostgreSQL-backed `DatabasePrivateStorage` by default so PDFs stay permanently
+    synced across all devices and deployments without ephemeral disk loss."""
     custom = conf.get("LIBRARY_STORAGE", None)
     if custom:
-        return import_string(custom)()
+        try:
+            return import_string(custom)()
+        except ImportError:
+            pass
+    if getattr(settings, "USE_DB_MEDIA", False):
+        from media_app.storage import DatabasePrivateStorage
+        return DatabasePrivateStorage()
     root = conf.get("LIBRARY_PRIVATE_ROOT", None) or (settings.BASE_DIR / "private_media")
     return FileSystemStorage(location=str(root), base_url=None)
 

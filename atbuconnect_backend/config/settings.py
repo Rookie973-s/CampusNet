@@ -263,8 +263,14 @@ LIBRARY_REQUIRE_LOGIN_TO_DOWNLOAD = env.bool("LIBRARY_REQUIRE_LOGIN_TO_DOWNLOAD"
 # ── Google sign-in (inactive until a client id is set; needs `pip install google-auth`) ──
 GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", default="")
 
-# ── Persistent S3 / Cloudflare R2 storage for images, avatars, ads & PDFs ─────
-if env.bool("USE_S3_MEDIA", default=False):  # pragma: no cover
+# ── Persistent Media Storage (Database-backed by default for 100% cross-device sync) ──
+# All uploaded avatars, post images, community avatars/covers, ad creatives & PDFs
+# are stored in PostgreSQL (`StoredMediaFile`) so they survive Render restarts and
+# stay identically synced across Android, iOS & Web with zero external storage setup.
+USE_S3_MEDIA = env.bool("USE_S3_MEDIA", default=False)
+USE_DB_MEDIA = env.bool("USE_DB_MEDIA", default=not USE_S3_MEDIA)
+
+if USE_S3_MEDIA:  # pragma: no cover
     INSTALLED_APPS += ["storages"]
     STORAGES = {
         "default": {"BACKEND": "storages.backends.s3.S3Storage"},
@@ -275,6 +281,11 @@ if env.bool("USE_S3_MEDIA", default=False):  # pragma: no cover
     AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME", default="")
     AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME", default="auto")
     AWS_S3_ENDPOINT_URL = env("AWS_S3_ENDPOINT_URL", default=None)
+elif USE_DB_MEDIA:
+    STORAGES = {
+        "default": {"BACKEND": "media_app.storage.DatabaseMediaStorage"},
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }
     AWS_S3_CUSTOM_DOMAIN = env("AWS_S3_CUSTOM_DOMAIN", default=None)
     AWS_DEFAULT_ACL = None
     AWS_QUERYSTRING_AUTH = env.bool("AWS_QUERYSTRING_AUTH", default=False)

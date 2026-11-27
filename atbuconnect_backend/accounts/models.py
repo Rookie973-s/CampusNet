@@ -26,6 +26,9 @@ def user_avatar_path(instance, filename):
 
 
 def verification_private_storage():
+    if getattr(settings, "USE_DB_MEDIA", False):
+        from media_app.storage import DatabasePrivateStorage
+        return DatabasePrivateStorage()
     root = getattr(settings, "LIBRARY_PRIVATE_ROOT", None) or (settings.BASE_DIR / "private_media")
     return FileSystemStorage(location=str(root), base_url=None)
 

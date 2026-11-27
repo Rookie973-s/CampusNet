@@ -10,6 +10,7 @@ import '../../core/models/models.dart';
 import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/clay_system.dart';
 import '../../core/widgets/form_templates.dart';
 import '../../core/widgets/morphism_widgets.dart';
 import '../../core/widgets/paystack_sheet.dart';
@@ -208,12 +209,8 @@ class _AdsDashboardScreenState extends ConsumerState<AdsDashboardScreen> {
                     _load();
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: _range == r.$1 ? cn.accent : cn.surface,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: _range == r.$1 ? cn.accent : cn.borderSubtle),
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                    decoration: ClayDecorations.pill(context, active: _range == r.$1),
                     child: Text(
                       r.$2,
                       style: TextStyle(

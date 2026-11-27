@@ -9,6 +9,7 @@ import '../../core/models/models.dart';
 import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/clay_system.dart';
 import '../../core/widgets/morphism_widgets.dart';
 import '../../core/widgets/skeleton_widgets.dart';
 import '../auth/auth_provider.dart';
@@ -114,37 +115,37 @@ class _SugScreenState extends ConsumerState<SugScreen> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                TextField(
+                ClayTextField(
                   controller: note,
+                  hint: 'Share constructive feedback...',
+                  prefixIcon: Icons.rate_review_outlined,
+                  iconColor: cn.gold,
                   maxLines: 3,
-                  decoration: const InputDecoration(hintText: 'Share constructive feedback...'),
                 ),
                 const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      try {
-                        await ref.read(apiClientProvider).dio.post(
-                              '/users/${rep['id']}/rate-sug/',
-                              data: {'score': stars, 'comment': note.text.trim()},
-                            );
-                        if (ctx.mounted) Navigator.of(ctx).pop();
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Rating submitted!')),
+                ClayButton(
+                  label: 'Submit Rating',
+                  color: cn.gold,
+                  onTap: () async {
+                    try {
+                      await ref.read(apiClientProvider).dio.post(
+                            '/users/${rep['id']}/rate-sug/',
+                            data: {'score': stars, 'comment': note.text.trim()},
                           );
-                        }
-                        _load();
-    Future.microtask(() => ref.read(departmentsProvider.notifier).ensureLoaded());
-                      } catch (e) {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(parseApiError(e))));
-                        }
+                      if (ctx.mounted) Navigator.of(ctx).pop();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Rating submitted!')),
+                        );
                       }
-                    },
-                    child: const Text('Submit Rating'),
-                  ),
+                      _load();
+                      Future.microtask(() => ref.read(departmentsProvider.notifier).ensureLoaded());
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(parseApiError(e))));
+                      }
+                    }
+                  },
                 ),
               ],
             ),

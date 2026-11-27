@@ -48,3 +48,22 @@ class MediaComment(models.Model):
 
     class Meta:
         ordering = ["created_at"]
+
+
+class StoredMediaFile(models.Model):
+    """Database-backed persistent media blob so uploaded avatars, post photos,
+    community covers, ad creatives, and private PDFs stay 100% synced across
+    all devices, platforms, workers, and Render restarts without ephemeral disk loss."""
+
+    name = models.CharField(max_length=255, unique=True, db_index=True)
+    content_type = models.CharField(max_length=120, default="application/octet-stream")
+    data = models.BinaryField()
+    size = models.PositiveIntegerField(default=0)
+    is_private = models.BooleanField(default=False, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return f"{self.name} ({self.size} bytes)"

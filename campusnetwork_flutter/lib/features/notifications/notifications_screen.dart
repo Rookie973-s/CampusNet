@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/motion/liquid_motion.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/clay_system.dart';
 import '../auth/auth_provider.dart';
 
 /// Real-Time Notifications Screen with narrow-screen-safe AppBar (no badge/button overlap!).
@@ -112,16 +113,10 @@ class NotificationsScreen extends ConsumerWidget {
                     },
                     child: Container(
                       padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: n.read ? cn.surface : cn.accentSoft,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: context.isDark ? 0.25 : 0.05),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
+                      decoration: ClayDecorations.card(
+                        context,
+                        radius: 22,
+                        tint: n.read ? null : cn.accent,
                       ),
                       child: Row(
                         children: [

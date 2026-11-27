@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:campusnetwork_flutter/core/navigation/scroll_chrome.dart';
 import 'package:campusnetwork_flutter/core/theme/app_theme.dart';
+import 'package:campusnetwork_flutter/core/theme/clay_system.dart';
 import 'package:campusnetwork_flutter/core/widgets/morphism_widgets.dart';
 
 void main() {
@@ -14,8 +15,8 @@ void main() {
     final light = AppTheme.light();
     expect(dark.extension<CampusColors>(), isNotNull);
     expect(light.extension<CampusColors>(), isNotNull);
-    expect(dark.extension<CampusColors>()!.bg, const Color(0xFF000000));
-    expect(light.extension<CampusColors>()!.bg, const Color(0xFFFFFFFF));
+    expect(dark.extension<CampusColors>()!.bg, CampusColors.dark.background);
+    expect(light.extension<CampusColors>()!.bg, CampusColors.light.background);
     expect(dark.textTheme.bodyMedium?.decoration, TextDecoration.none);
     expect(light.textTheme.bodyMedium?.decoration, TextDecoration.none);
   });
@@ -55,6 +56,28 @@ void main() {
       expect(find.text('CampusNetwork'), findsOneWidget);
       expect(find.byIcon(Icons.verified_rounded), findsOneWidget);
       expect(find.byIcon(Icons.verified_user_rounded), findsOneWidget);
+    }
+  });
+
+  testWidgets('ClayTextField & ClayButton render cleanly in Dark and Light themes', (tester) async {
+    final ctrl = TextEditingController();
+    addTearDown(ctrl.dispose);
+    for (final theme in [AppTheme.dark(), AppTheme.light()]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          home: Scaffold(
+            body: Column(
+              children: [
+                ClayTextField(controller: ctrl, label: 'Email', hint: 'student@atbu.edu.ng', prefixIcon: Icons.mail_outline),
+                ClayButton(label: 'Continue', onTap: () {}),
+              ],
+            ),
+          ),
+        ),
+      );
+      expect(find.text('Email'), findsOneWidget);
+      expect(find.text('Continue'), findsOneWidget);
     }
   });
 }

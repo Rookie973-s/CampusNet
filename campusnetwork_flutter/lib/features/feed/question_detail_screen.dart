@@ -8,6 +8,7 @@ import '../../core/models/models.dart';
 import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/clay_system.dart';
 import '../../core/widgets/morphism_widgets.dart';
 import '../../core/widgets/rich_mention_text.dart';
 import '../../core/widgets/skeleton_widgets.dart';
@@ -340,27 +341,20 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        decoration: BoxDecoration(color: c.surfaceMuted, borderRadius: BorderRadius.circular(14)),
-                        child: TextField(
-                          controller: _ctrl,
-                          style: TextStyle(color: c.textPrimary),
-                          decoration: InputDecoration(
-                            hintText: _replyTo != null ? 'Write a reply...' : 'Add a helpful answer...',
-                            hintStyle: TextStyle(color: c.textSecondary),
-                            border: InputBorder.none,
-                          ),
-                        ),
+                      child: ClayTextField(
+                        controller: _ctrl,
+                        hint: _replyTo != null ? 'Write a reply...' : 'Add a helpful answer...',
+                        prefixIcon: Icons.chat_bubble_outline_rounded,
+                        radius: 22,
                       ),
                     ),
                     const SizedBox(width: 8),
                     LiquidTap(
                       onTap: _sending ? null : _sendComment,
                       child: Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(color: c.accent, borderRadius: BorderRadius.circular(14)),
+                        width: 48,
+                        height: 48,
+                        decoration: ClayDecorations.button(context, color: c.accent, radius: 18, disabled: _sending),
                         child: const Icon(Icons.send_rounded, color: Colors.white, size: 19),
                       ),
                     ),
@@ -559,12 +553,8 @@ class _CommentRow extends StatelessWidget {
                 children: [
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(13, 10, 13, 22),
-                    decoration: BoxDecoration(
-                      color: c.surface,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: c.divider, width: 0.7),
-                    ),
+                    padding: const EdgeInsets.fromLTRB(14, 11, 14, 24),
+                    decoration: ClayDecorations.card(context, radius: 20, elevation: ClayElevation.low),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -605,12 +595,7 @@ class _CommentRow extends StatelessWidget {
                     bottom: -14,
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: c.surfaceElevated,
-                        borderRadius: BorderRadius.circular(99),
-                        border: Border.all(color: c.divider),
-                        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 3))],
-                      ),
+                      decoration: ClayDecorations.card(context, radius: 999, color: c.surfaceElevated, elevation: ClayElevation.medium),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
