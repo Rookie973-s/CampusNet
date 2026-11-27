@@ -5,6 +5,21 @@
 
 export const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
 
+/** Normalize relative or http:// media URLs against the API origin so images render consistently everywhere. */
+export function normalizeMediaUrl(url) {
+  if (!url || typeof url !== "string") return null;
+  let u = url.trim();
+  if (!u) return null;
+  if (u.startsWith("http://") && !u.includes("localhost") && !u.includes("127.0.0.1")) {
+    u = "https://" + u.slice("http://".length);
+  }
+  if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("blob:") || u.startsWith("data:")) {
+    return u;
+  }
+  const origin = API_BASE.replace(/\/api(\/v\d+)?\/?$/, "");
+  return `${origin}${u.startsWith("/") ? "" : "/"}${u}`;
+}
+
 const ACCESS_KEY = "atbu_access";
 const REFRESH_KEY = "atbu_refresh";
 

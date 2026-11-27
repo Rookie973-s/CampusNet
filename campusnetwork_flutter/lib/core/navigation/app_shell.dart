@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import '../../features/auth/auth_provider.dart';
 import '../../features/auth/landing_screen.dart';
 import '../../features/feed/create_post_modals.dart';
 import '../../features/feed/feed_screen.dart';
+import '../models/models.dart';
 import '../motion/liquid_motion.dart';
 import '../network/api_client.dart';
 import '../theme/app_theme.dart';
@@ -33,6 +35,9 @@ class _AppShellState extends ConsumerState<AppShell> with SingleTickerProviderSt
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   late final AnimationController _fabCtrl;
   bool _fabOpen = false;
+  int _lastSeenNotifId = 0;
+  NotificationItem? _bannerNotif;
+  Timer? _bannerTimer;
 
   @override
   void initState() {
@@ -42,8 +47,40 @@ class _AppShellState extends ConsumerState<AppShell> with SingleTickerProviderSt
 
   @override
   void dispose() {
+    _bannerTimer?.cancel();
     _fabCtrl.dispose();
     super.dispose();
+  }
+
+  void _showInAppNotificationBanner(NotificationItem n) {
+    _bannerTimer?.cancel();
+    HapticFeedback.mediumImpact();
+    setState(() => _bannerNotif = n);
+    _bannerTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) setState(() => _bannerNotif = null);
+    });
+  }
+
+  void _openNotifLink(NotificationItem n) {
+    _bannerTimer?.cancel();
+    setState(() => _bannerNotif = null);
+    ref.read(notificationsProvider.notifier).markRead(n.id);
+    if (n.link.startsWith('/q/')) {
+      final qid = n.link.replaceFirst('/q/', '').split('?').first.trim();
+      if (qid.isNotEmpty) {
+        context.push('/question/$qid');
+        return;
+      }
+    }
+    if (n.link.startsWith('/chats')) {
+      context.push('/chats');
+    } else if (n.link.startsWith('/communities/')) {
+      context.push('/community/${n.link.replaceFirst('/communities/', '')}');
+    } else if (n.link.startsWith('/ads')) {
+      context.push('/ads');
+    } else {
+      context.push('/notifications');
+    }
   }
 
   void _toggleFab([bool? force]) {
@@ -86,6 +123,22 @@ class _AppShellState extends ConsumerState<AppShell> with SingleTickerProviderSt
     final idx = widget.navigationShell.currentIndex;
     final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 20;
 
+    // Real-time in-app floating notification toast whenever a brand-new unread notification arrives
+    ref.listen<List<NotificationItem>>(notificationsProvider, (prev, next) {
+      if (next.isEmpty) return;
+      final newest = next.first;
+      if (_lastSeenNotifId == 0) {
+        _lastSeenNotifId = newest.id;
+        return;
+      }
+      if (newest.id > _lastSeenNotifId && !newest.read) {
+        _lastSeenNotifId = newest.id;
+        _showInAppNotificationBanner(newest);
+      } else if (newest.id > _lastSeenNotifId) {
+        _lastSeenNotifId = newest.id;
+      }
+    });
+
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: c.background,
@@ -113,6 +166,63 @@ class _AppShellState extends ConsumerState<AppShell> with SingleTickerProviderSt
                 child: widget.navigationShell,
               ),
             ),
+
+            // Animated In-App Push Notification Banner Overlay
+            if (_bannerNotif != null)
+              Positioned(
+                top: MediaQuery.paddingOf(context).top + 10,
+                left: 14,
+                right: 14,
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOutBack,
+                  builder: (_, val, child) => Transform.translate(
+                    offset: Offset(0, -24 * (1 - val)),
+                    child: Opacity(opacity: val.clamp(0.0, 1.0), child: child),
+                  ),
+                  child: LiquidTap(
+                    onTap: () => _openNotifLink(_bannerNotif!),
+                    child: GlassContainer(
+                      radius: 22,
+                      sigma: 18,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      child: Row(
+                        children: [
+                          ClayIconPill(icon: Icons.notifications_active_rounded, color: c.accent, size: 36),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'New Notification',
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: c.accent),
+                                ),
+                                Text(
+                                  _bannerNotif!.text,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: c.textPrimary),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            icon: Icon(Icons.close_rounded, size: 18, color: c.textSecondary),
+                            onPressed: () {
+                              _bannerTimer?.cancel();
+                              setState(() => _bannerNotif = null);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
 
             // Liquid-Glass Floating Top Navbar — shown ONLY on Feed (hidden on Library, SUG & Me so it never obstructs!)
             if (idx == 0)

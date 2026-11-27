@@ -25,7 +25,7 @@ class Campaign(models.Model):
         COMPLETED = "completed", "Completed"
 
     class PaymentStatus(models.TextChoices):
-        COMING_SOON = "coming_soon", "Payment Coming Soon"
+        COMING_SOON = "coming_soon", "Unpaid (Legacy)"
         UNPAID = "unpaid", "Unpaid"
         PENDING = "pending", "Pending Verification"
         PAID = "paid", "Paid"
@@ -59,7 +59,7 @@ class Campaign(models.Model):
     # Statuses (kept strictly separate: approval/delivery vs payment)
     status = models.CharField(max_length=15, choices=Status.choices, default=Status.PENDING, db_index=True)
     payment_status = models.CharField(
-        max_length=16, choices=PaymentStatus.choices, default=PaymentStatus.COMING_SOON
+        max_length=16, choices=PaymentStatus.choices, default=PaymentStatus.UNPAID
     )
     payment_reference = models.CharField(max_length=120, blank=True)
 
@@ -148,13 +148,39 @@ class PaymentTransaction(models.Model):
     virtual_account_number = models.CharField(max_length=32, blank=True)
     virtual_account_name = models.CharField(max_length=120, blank=True)
     checkout_url = models.URLField(max_length=500, blank=True)
+    idempotency_key = models.CharField(max_length=80, blank=True, db_index=True)
     paid_at = models.DateTimeField(null=True, blank=True)
     raw_webhook = models.JSONField(default=dict, blank=True)
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-created_at"]
 
+    def soft_delete(self):
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.save(update_fields=["is_deleted", "deleted_at", "updated_at"])
+
     def __str__(self):
         return f"{self.reference} — {self.purpose} ₦{self.amount_ngn} ({self.status})"
+
+
+class AuditLog(models.Model):
+    """Append-only security, payment, and verification audit trail."""
+
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="audit_logs")
+    action = models.CharField(max_length=64, db_index=True)
+    target_type = models.CharField(max_length=48, blank=True)
+    target_id = models.CharField(max_length=64, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    ip_hash = models.CharField(max_length=64, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.action} ({self.target_type}:{self.target_id})"

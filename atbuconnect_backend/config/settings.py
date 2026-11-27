@@ -50,6 +50,7 @@ AUTH_USER_MODEL = "accounts.User"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "django.middleware.gzip.GZipMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -124,7 +125,31 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 WHITENOISE_USE_FINDERS = True
 
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+# Supports Render Persistent Disk: set MEDIA_ROOT=/var/data/media in Render Environment Variables
+MEDIA_ROOT = Path(env("MEDIA_ROOT", default=str(BASE_DIR / "media")))
+
+# ── Caching (Redis when REDIS_URL is configured, safe in-memory fallback otherwise) ──
+REDIS_URL = env("REDIS_URL", default="").strip()
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+            "TIMEOUT": 300,
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "campusnetwork-cache",
+            "TIMEOUT": 300,
+        }
+    }
+
+# Brute-force login lockout policy (per identifier + IP)
+LOGIN_MAX_ATTEMPTS = env.int("LOGIN_MAX_ATTEMPTS", default=5)
+LOGIN_LOCKOUT_SECONDS = env.int("LOGIN_LOCKOUT_SECONDS", default=900)
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -203,6 +228,9 @@ REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {
     "ad_tracking": env("AD_TRACKING_THROTTLE", default="120/minute"),
 }
 
+# Always honor reverse-proxy HTTPS headers (Render/Nginx/Cloudflare) so media URLs always emit https://
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 # ── Production Transport Security (automatically enforced when DEBUG=False) ───
 if not DEBUG:
     SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)
@@ -211,7 +239,6 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=31536000)
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # ── Uploads ────────────────────────────────────────────────────
 # Django buffers small uploads in memory and streams bigger ones to disk; these caps

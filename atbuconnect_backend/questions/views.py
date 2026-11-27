@@ -305,7 +305,7 @@ class QuestionViewSet(viewsets.ModelViewSet):
                     notif_type=Notification.Type.POST_FROM_FOLLOWED,
                     text=f"{request.user.display_name} (@{request.user.username}) posted: {question.title[:70]}",
                     actor=request.user,
-                    link=f"/q/{question.pk}",
+                    link=f"/q/{question.public_id or question.pk}",
                     question=question,
                 )
 
@@ -378,7 +378,7 @@ class QuestionViewSet(viewsets.ModelViewSet):
                     notif_type=Notification.Type.LIKE,
                     text=f"{request.user.display_name} upvoted your post: {question.title[:60]}",
                     actor=request.user,
-                    link=f"/q/{question.pk}",
+                    link=f"/q/{question.public_id or question.pk}",
                     question=question,
                 )
         return Response({"votes": question.votes, "voted": voted})
@@ -395,7 +395,7 @@ class QuestionViewSet(viewsets.ModelViewSet):
                 notif_type=Notification.Type.LIKE,
                 text=f"{request.user.display_name} liked your post: {question.title[:60]}",
                 actor=request.user,
-                link=f"/q/{question.pk}",
+                link=f"/q/{question.public_id or question.pk}",
                 question=question,
             )
         return Response({"likes": question.likes, "liked": created})
@@ -491,7 +491,7 @@ class QuestionViewSet(viewsets.ModelViewSet):
                 notif_type=Notification.Type.COMMENT,
                 text=f"{request.user.display_name} replied to your comment on: {question.title[:50]}",
                 actor=request.user,
-                link=f"/q/{question.pk}",
+                link=f"/q/{question.public_id or question.pk}",
                 question=question,
                 answer=ans,
             )
@@ -501,7 +501,7 @@ class QuestionViewSet(viewsets.ModelViewSet):
                 notif_type=Notification.Type.ANSWER,
                 text=f"{request.user.display_name} commented on your post: {question.title[:50]}",
                 actor=request.user,
-                link=f"/q/{question.pk}",
+                link=f"/q/{question.public_id or question.pk}",
                 question=question,
                 answer=ans,
             )
@@ -610,7 +610,7 @@ class AnswerViewSet(viewsets.ModelViewSet):
                     notif_type=Notification.Type.LIKE,
                     text=f"{request.user.display_name} upvoted your comment.",
                     actor=request.user,
-                    link=f"/q/{answer.question_id}",
+                    link=f"/q/{answer.question.public_id or answer.question_id}",
                     question=answer.question,
                     answer=answer,
                 )
@@ -633,7 +633,7 @@ class AnswerViewSet(viewsets.ModelViewSet):
                 notif_type=Notification.Type.LIKE,
                 text=f"{request.user.display_name} liked your comment.",
                 actor=request.user,
-                link=f"/q/{answer.question_id}",
+                link=f"/q/{answer.question.public_id or answer.question_id}",
                 question=answer.question,
                 answer=answer,
             )

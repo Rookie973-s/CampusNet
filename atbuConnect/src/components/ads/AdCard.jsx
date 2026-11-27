@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Ic from "../Ic";
 import { recordAdClick, recordAdImpression } from "../../api/ads";
+import { normalizeMediaUrl } from "../../api/client";
 
 /**
  * Native in-feed / in-comment sponsored ad card.
@@ -9,6 +10,10 @@ import { recordAdClick, recordAdImpression } from "../../api/ads";
 export default function AdCard({ ad, placement = "feed" }) {
   const ref = useRef(null);
   const seen = useRef(false);
+  const [imgFailed, setImgFailed] = useState(false);
+  const imgUrl = normalizeMediaUrl(ad?.image_url);
+
+  useEffect(() => { setImgFailed(false); }, [imgUrl]);
 
   useEffect(() => {
     if (!ad?.id || seen.current || !ref.current) return;
@@ -47,8 +52,14 @@ export default function AdCard({ ad, placement = "feed" }) {
         <span style={{ fontSize: 11, color: "var(--faint)" }}>CampusNetwork Ads</span>
       </div>
       <div className="ad-card-body">
-        {ad.image_url && (
-          <img src={ad.image_url} alt={ad.headline} className="ad-card-img" loading="lazy" />
+        {imgUrl && !imgFailed && (
+          <img
+            src={imgUrl}
+            alt={ad.headline}
+            className="ad-card-img"
+            loading="lazy"
+            onError={() => setImgFailed(true)}
+          />
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <h4 style={{ fontSize: 16, fontFamily: "'DM Sans',sans-serif", fontWeight: 800, marginBottom: 4 }}>{ad.headline}</h4>

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -8,6 +9,7 @@ import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/morphism_widgets.dart';
+import '../../core/widgets/rich_mention_text.dart';
 import '../../core/widgets/skeleton_widgets.dart';
 import '../auth/auth_provider.dart';
 import '../auth/landing_screen.dart';
@@ -108,15 +110,74 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
     }
   }
 
+  /// Recursively updates a single comment node inside `_comments` in place (zero page refresh!).
+  List<Map<String, dynamic>> _mapCommentTree(
+    List<Map<String, dynamic>> nodes,
+    int targetId,
+    Map<String, dynamic> Function(Map<String, dynamic> node) transform,
+  ) {
+    return nodes.map((node) {
+      final copy = Map<String, dynamic>.from(node);
+      if ((copy['id'] as num?)?.toInt() == targetId) {
+        return transform(copy);
+      }
+      final rawReplies = copy['replies'];
+      if (rawReplies is List && rawReplies.isNotEmpty) {
+        final typed = rawReplies.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+        copy['replies'] = _mapCommentTree(typed, targetId, transform);
+      }
+      return copy;
+    }).toList();
+  }
+
   Future<void> _voteComment(int id, String dir) async {
     if (ref.read(authProvider).user == null) {
       showAuthSheet(context);
       return;
     }
+    HapticFeedback.selectionClick();
+    final prevComments = _comments;
+    // Optimistic update (zero screen refresh)
+    setState(() {
+      _comments = _mapCommentTree(_comments, id, (node) {
+        final cur = node['my_vote']?.toString();
+        int ups = (node['upvotes'] as num?)?.toInt() ?? 0;
+        int downs = (node['downvotes'] as num?)?.toInt() ?? 0;
+        String? next;
+        if (cur == dir) {
+          next = null;
+          if (dir == 'up') ups = (ups - 1).clamp(0, 999999);
+          if (dir == 'down') downs = (downs - 1).clamp(0, 999999);
+        } else {
+          next = dir;
+          if (cur == 'up') ups = (ups - 1).clamp(0, 999999);
+          if (cur == 'down') downs = (downs - 1).clamp(0, 999999);
+          if (dir == 'up') ups += 1;
+          if (dir == 'down') downs += 1;
+        }
+        return {...node, 'my_vote': next, 'upvotes': ups, 'downvotes': downs};
+      });
+    });
+
     try {
-      await ref.read(apiClientProvider).dio.post('/answers/$id/vote/', data: {'direction': dir});
-      await _load();
-    } catch (_) {}
+      final res = await ref.read(apiClientProvider).dio.post('/answers/$id/vote/', data: {'direction': dir});
+      if (mounted && res.data is Map) {
+        final d = Map<String, dynamic>.from(res.data as Map);
+        setState(() {
+          _comments = _mapCommentTree(_comments, id, (node) => {
+                ...node,
+                'upvotes': d['upvotes'] ?? node['upvotes'],
+                'downvotes': d['downvotes'] ?? node['downvotes'],
+                'my_vote': d['my_vote'],
+              });
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _comments = prevComments);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(parseApiError(e))));
+      }
+    }
   }
 
   Future<void> _likeComment(int id) async {
@@ -124,10 +185,39 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
       showAuthSheet(context);
       return;
     }
+    HapticFeedback.lightImpact();
+    final prevComments = _comments;
+    // Optimistic update (instant feedback, zero screen reload!)
+    setState(() {
+      _comments = _mapCommentTree(_comments, id, (node) {
+        final wasLiked = node['liked'] == true;
+        final prevLikes = (node['likes'] as num?)?.toInt() ?? 0;
+        return {
+          ...node,
+          'liked': !wasLiked,
+          'likes': wasLiked ? (prevLikes - 1).clamp(0, 999999) : prevLikes + 1,
+        };
+      });
+    });
+
     try {
-      await ref.read(apiClientProvider).dio.post('/answers/$id/like/');
-      await _load();
-    } catch (_) {}
+      final res = await ref.read(apiClientProvider).dio.post('/answers/$id/like/');
+      if (mounted && res.data is Map) {
+        final d = Map<String, dynamic>.from(res.data as Map);
+        setState(() {
+          _comments = _mapCommentTree(_comments, id, (node) => {
+                ...node,
+                'liked': d['liked'] == true,
+                'likes': (d['likes'] as num?)?.toInt() ?? node['likes'],
+              });
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _comments = prevComments);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(parseApiError(e))));
+      }
+    }
   }
 
   @override
@@ -160,10 +250,10 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
                     subtitle: '${q.dept} · ${q.time}',
                   ),
                   const SizedBox(height: 10),
-                  Text(q.title, style: TextStyle(fontSize: 18.5, fontWeight: FontWeight.w900, color: c.textPrimary)),
+                  RichMentionText(q.title, style: TextStyle(fontSize: 18.5, fontWeight: FontWeight.w900, color: c.textPrimary)),
                   if (q.body.isNotEmpty && q.body != q.title) ...[
                     const SizedBox(height: 6),
-                    Text(q.body, style: TextStyle(fontSize: 14.5, height: 1.5, color: c.textPrimary)),
+                    RichMentionText(q.body, style: TextStyle(fontSize: 14.5, height: 1.5, color: c.textPrimary)),
                   ],
                   const SizedBox(height: 14),
                   Divider(color: c.divider, height: 1),
@@ -498,66 +588,81 @@ class _CommentRow extends StatelessWidget {
                         ),
                         if (replyingTo != null) ...[
                           const SizedBox(height: 2),
-                          Text(
+                          RichMentionText(
                             'Replying to @$replyingTo',
-                            style: TextStyle(color: c.accent, fontSize: 11.5, fontWeight: FontWeight.w600),
+                            style: TextStyle(color: c.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w600),
                           ),
                         ],
                         const SizedBox(height: 5),
-                        Text((raw['body'] ?? '').toString(), style: TextStyle(fontSize: 14, height: 1.45, color: c.textPrimary)),
+                        RichMentionText((raw['body'] ?? '').toString(), style: TextStyle(fontSize: 14, height: 1.45, color: c.textPrimary)),
                       ],
                     ),
                   ),
 
-                  // Floating overlapping reaction pill (Like, Upvote, Downvote, Reply)
+                  // Floating overlapping reaction pill with comfortable touch targets (Like, Upvote, Downvote, Reply)
                   Positioned(
-                    right: 8,
-                    bottom: -11,
+                    right: 6,
+                    bottom: -14,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: c.surfaceElevated,
                         borderRadius: BorderRadius.circular(99),
                         border: Border.all(color: c.divider),
-                        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2))],
+                        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 3))],
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          LiquidTap(
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
                             onTap: () => onLike(id),
-                            child: Row(
-                              children: [
-                                Icon(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 14, color: liked ? c.danger : c.textSecondary),
-                                const SizedBox(width: 3),
-                                Text('$likes', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: liked ? c.danger : c.textPrimary)),
-                              ],
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+                              child: Row(
+                                children: [
+                                  Icon(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 15, color: liked ? c.danger : c.textSecondary),
+                                  const SizedBox(width: 4),
+                                  Text('$likes', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: liked ? c.danger : c.textPrimary)),
+                                ],
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 10),
-                          LiquidTap(
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
                             onTap: () => onVote(id, 'up'),
-                            child: Row(
-                              children: [
-                                Icon(Icons.arrow_upward_rounded, size: 14, color: myVote == 'up' ? c.accent : c.textSecondary),
-                                Text('$upvotes', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: myVote == 'up' ? c.accent : c.textPrimary)),
-                              ],
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.arrow_upward_rounded, size: 15, color: myVote == 'up' ? c.accent : c.textSecondary),
+                                  const SizedBox(width: 2),
+                                  Text('$upvotes', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: myVote == 'up' ? c.accent : c.textPrimary)),
+                                ],
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          LiquidTap(
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
                             onTap: () => onVote(id, 'down'),
-                            child: Row(
-                              children: [
-                                Icon(Icons.arrow_downward_rounded, size: 14, color: myVote == 'down' ? c.danger : c.textSecondary),
-                                Text('$downvotes', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: myVote == 'down' ? c.danger : c.textPrimary)),
-                              ],
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.arrow_downward_rounded, size: 15, color: myVote == 'down' ? c.danger : c.textSecondary),
+                                  const SizedBox(width: 2),
+                                  Text('$downvotes', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: myVote == 'down' ? c.danger : c.textPrimary)),
+                                ],
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 10),
-                          LiquidTap(
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
                             onTap: () => onReply(raw),
-                            child: Text('Reply', style: TextStyle(color: c.accent, fontSize: 11.5, fontWeight: FontWeight.w800)),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                              child: Text('Reply', style: TextStyle(color: c.accent, fontSize: 12, fontWeight: FontWeight.w800)),
+                            ),
                           ),
                         ],
                       ),

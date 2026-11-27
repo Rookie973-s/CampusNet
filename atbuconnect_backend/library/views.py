@@ -75,10 +75,37 @@ class DocumentViewSet(viewsets.ModelViewSet):
             qs = qs.filter(uploaded_by=self.request.user)
         return qs
 
-    @action(detail=True, methods=["get"], url_path="file")
-    def file(self, request, pk=None):
-        """Authenticated streaming; the storage path is never exposed publicly."""
+    @action(detail=True, methods=["get"], url_path="signed-url")
+    def signed_url(self, request, pk=None):
+        """Issue a short-lived signed download URL (5-minute TTL) for private PDF access."""
+        from django.core.signing import TimestampSigner
+
         if conf.REQUIRE_LOGIN_TO_DOWNLOAD() and not getattr(request.user, "is_authenticated", False):
+            return Response({"detail": "Sign in to download this document."}, status=status.HTTP_401_UNAUTHORIZED)
+        doc = self.get_object()
+        signer = TimestampSigner(salt="campusnetwork.library.pdf")
+        sig = signer.sign(f"{doc.pk}:{request.user.pk if request.user.is_authenticated else 0}")
+        url = request.build_absolute_uri(f"/api/library/documents/{doc.pk}/file/?sig={sig}&download=1")
+        if url.startswith("http://") and not any(h in url for h in ("127.0.0.1", "localhost")):
+            url = "https://" + url[len("http://"):]
+        return Response({"url": url, "expires_in": 300})
+
+    @action(detail=True, methods=["get"], url_path="file", permission_classes=[AllowAny])
+    def file(self, request, pk=None):
+        """Authenticated (or signed-URL) streaming; the storage path is never exposed publicly."""
+        from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
+
+        sig_valid = False
+        sig = (request.query_params.get("sig") or "").strip()
+        if sig:
+            try:
+                raw = TimestampSigner(salt="campusnetwork.library.pdf").unsign(sig, max_age=300)
+                doc_id_str = raw.split(":", 1)[0]
+                sig_valid = str(pk) == doc_id_str
+            except (BadSignature, SignatureExpired):
+                return Response({"detail": "Download link expired or invalid."}, status=status.HTTP_403_FORBIDDEN)
+
+        if conf.REQUIRE_LOGIN_TO_DOWNLOAD() and not sig_valid and not getattr(request.user, "is_authenticated", False):
             return Response({"detail": "Sign in to open this document."}, status=status.HTTP_401_UNAUTHORIZED)
         doc = self.get_object()
         try:

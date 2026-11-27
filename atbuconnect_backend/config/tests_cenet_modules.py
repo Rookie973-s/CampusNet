@@ -145,7 +145,7 @@ class AdvertisingModuleTests(TestCase):
         cid = r.json()["id"]
         # Must NOT auto-approve or auto-pay!
         self.assertEqual(r.json()["status"], "pending")
-        self.assertEqual(r.json()["payment_status"], "coming_soon")
+        self.assertEqual(r.json()["payment_status"], "unpaid")
 
         # Payment initiation returns not_configured when PAYSTACK_SECRET_KEY is unset
         pay = self.c.post(f"/api/ads/{cid}/initiate-payment/").json()
@@ -163,14 +163,15 @@ class AdvertisingModuleTests(TestCase):
         self.c.force_authenticate(self.admin)
         self.assertEqual(self.c.post(f"/api/ads/{cid}/approve/").json()["status"], "active")
 
-        self.c.force_authenticate(self.student)
+        # Serve & record deduplicated impression & click as a non-advertiser viewer (self-impressions are blocked)
+        self.c.force_authenticate(user=None)
         served = self.c.get("/api/ads/serve/?placement=feed").json()
         self.assertEqual(len(served), 1)
-        # Deduplicated impression & click
         self.assertTrue(self.c.post(f"/api/ads/{cid}/impression/", {"placement": "feed"}, format="json").json()["recorded"])
         self.assertFalse(self.c.post(f"/api/ads/{cid}/impression/", {"placement": "feed"}, format="json").json()["recorded"])
         self.assertTrue(self.c.post(f"/api/ads/{cid}/click/", {"placement": "feed"}, format="json").json()["recorded"])
 
+        self.c.force_authenticate(self.student)
         an = self.c.get("/api/ads/analytics/?range=7d").json()
         self.assertEqual(an["summary"]["total_impressions"], 1)
         self.assertEqual(an["summary"]["total_clicks"], 1)
@@ -273,7 +274,9 @@ class AccountSecurityAndVerifiedPerksTests(TestCase):
         r_log = self.c.post("/api/auth/login/", {"username": "musabello", "password": "ComplexPassword123!"}, format="json")
         self.assertEqual(r_log.status_code, 200)
 
-        # Forgot password -> verify 6-digit code -> reset -> token cannot be reused
+        # Forgot password requires verified email (unverified returns 400; once verified returns 200)
+        self.assertEqual(self.c.post("/api/auth/forgot-password/", {"email": "musa@atbu.edu.ng"}, format="json").status_code, 400)
+        User.objects.filter(pk=uid).update(email_verified=True)
         self.assertEqual(self.c.post("/api/auth/forgot-password/", {"email": "musa@atbu.edu.ng"}, format="json").status_code, 200)
         tok = PasswordResetToken.objects.filter(user_id=uid).first()
         self.assertIsNotNone(tok)

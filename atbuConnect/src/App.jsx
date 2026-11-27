@@ -131,7 +131,8 @@ export default function App() {
 
   const handleNav = (p) => { navigate(ROUTES[p] || "/"); setDrawerOpen(false); };
   const handleViewQ = (q) => {
-    if (q?.id) navigate(`/q/${q.id}`);
+    const slug = q?.publicId || q?.public_id || q?.id;
+    if (slug) navigate(`/q/${slug}`);
     else { setViewQ(q); navigate("/feed"); }
   };
   const toggleTheme = () => setTheme((x) => (x === "dark" ? "light" : "dark"));

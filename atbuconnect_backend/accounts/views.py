@@ -102,9 +102,24 @@ class LoginView(APIView):
     throttle_scope = "auth_login"
 
     def post(self, request, *args, **kwargs):
+        from django.core.cache import cache
+        from config.security import hash_ip
+
         identifier = str(request.data.get("username") or request.data.get("identifier") or "").strip()
         password = request.data.get("password", "")
         norm_phone = normalize_phone(identifier)
+
+        # Brute-force protection & temporary account lockout (per identifier + client IP)
+        max_attempts = getattr(settings, "LOGIN_MAX_ATTEMPTS", 5)
+        lockout_secs = getattr(settings, "LOGIN_LOCKOUT_SECONDS", 900)
+        ip_h = hash_ip(request)[:16]
+        lock_key = f"login_fail:{identifier.lower()}:{ip_h}"
+        attempts = cache.get(lock_key, 0)
+        if identifier and attempts >= max_attempts:
+            return Response(
+                {"detail": f"Too many failed sign-in attempts. Please wait {lockout_secs // 60} minutes and try again."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
 
         user = (
             User.objects.filter(username__iexact=identifier).first()
@@ -115,11 +130,15 @@ class LoginView(APIView):
         )
 
         if not user or not authenticate(request, username=user.username, password=password):
+            if identifier:
+                cache.set(lock_key, attempts + 1, timeout=lockout_secs)
             return Response(
                 {"detail": "Invalid username, email, or password."},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
+        if identifier:
+            cache.delete(lock_key)
         return Response({"user": MeSerializer(user, context={"request": request}).data, **tokens_for_user(user)})
 
 

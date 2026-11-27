@@ -15,7 +15,10 @@ def _abs(request, file_field):
         url = file_field.url
     except Exception:
         return None
-    return request.build_absolute_uri(url) if request else url
+    abs_url = request.build_absolute_uri(url) if request else url
+    if abs_url.startswith("http://") and not any(h in abs_url for h in ("127.0.0.1", "localhost")):
+        abs_url = "https://" + abs_url[len("http://"):]
+    return abs_url
 
 
 class CommunitySerializer(serializers.ModelSerializer):

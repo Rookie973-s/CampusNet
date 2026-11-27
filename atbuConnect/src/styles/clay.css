@@ -685,7 +685,9 @@
 .cmt-act:hover{background:var(--surfH);color:var(--txt)}
 .cmt-act.up-on{background:rgba(37,99,235,.14);color:var(--accent)}
 .cmt-act.down-on{background:rgba(239,68,68,.14);color:#EF4444}
-.cmt-thread{margin-top:12px;padding-left:16px;border-left:2px solid var(--brd);display:flex;flex-direction:column;gap:12px}
+.cmt-thread{margin-top:12px;margin-left:4px;padding-left:14px;border-left:2px solid var(--brdS);display:flex;flex-direction:column;gap:14px}
+.cmt-reply .cmt-row{gap:10px}
+.cmt-reply .cmt-actions{gap:4px}
 .cmt-collapse-btn{align-self:flex-start;font-size:12px;font-weight:700;color:var(--accent);padding:2px 0}
 
 /* ───────── Communities Module (Module 1) ───────── */

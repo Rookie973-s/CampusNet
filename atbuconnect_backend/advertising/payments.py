@@ -180,8 +180,18 @@ class PaystackGateway:
             "account_name": dva.get("account_name", ""),
         }
 
-    def initiate_payment(self, *, user, amount_ngn: Decimal, purpose: str, campaign=None) -> PaymentInitResult:
-        from .models import PaymentTransaction
+    def initiate_payment(
+        self,
+        *,
+        user,
+        amount_ngn: Decimal,
+        purpose: str,
+        campaign=None,
+        idempotency_key: str = "",
+        ip_hash: str = "",
+    ) -> PaymentInitResult:
+        from datetime import timedelta
+        from .models import AuditLog, PaymentTransaction
 
         amount_ngn = Decimal(amount_ngn).quantize(Decimal("0.01"))
         if not self.is_enabled():
@@ -190,6 +200,41 @@ class PaystackGateway:
                 status="not_configured",
                 amount_ngn=str(amount_ngn),
                 message="Paystack secret key is not configured yet on the server. Set PAYSTACK_SECRET_KEY in Render Environment Variables.",
+            )
+
+        clean_key = (idempotency_key or "").strip()[:80]
+        # Idempotency guard: reuse existing pending transaction with same idempotency_key
+        # OR a fresh (<2 min) pending transaction for the exact same user/purpose/campaign/amount
+        existing = None
+        base_qs = PaymentTransaction.objects.filter(
+            user=user,
+            purpose=purpose,
+            campaign=campaign,
+            amount_ngn=amount_ngn,
+            status=PaymentTransaction.Status.PENDING,
+            is_deleted=False,
+        )
+        if clean_key:
+            existing = base_qs.filter(idempotency_key=clean_key).first()
+        if existing is None:
+            cutoff = timezone.now() - timedelta(minutes=2)
+            existing = base_qs.filter(created_at__gte=cutoff).exclude(checkout_url="").first()
+
+        if existing:
+            return PaymentInitResult(
+                enabled=True,
+                status="pending",
+                amount_ngn=str(existing.amount_ngn),
+                reference=existing.reference,
+                bank_name=existing.virtual_account_bank or None,
+                account_number=existing.virtual_account_number or None,
+                account_name=existing.virtual_account_name or None,
+                checkout_url=existing.checkout_url or None,
+                message=(
+                    f"Transfer ₦{existing.amount_ngn:,.0f} to your dedicated account below or complete payment via Paystack."
+                    if existing.virtual_account_number
+                    else f"Complete your ₦{existing.amount_ngn:,.0f} payment securely via Paystack Bank Transfer / Card."
+                ),
             )
 
         ref = f"CN-{purpose[:3].upper()}-{secrets.token_hex(6).upper()}"
@@ -215,12 +260,21 @@ class PaystackGateway:
             campaign=campaign,
             amount_ngn=amount_ngn,
             reference=ref,
+            idempotency_key=clean_key,
             status=PaymentTransaction.Status.PENDING,
             paystack_customer_code=dva.get("customer_code", ""),
             virtual_account_bank=dva.get("bank_name", ""),
             virtual_account_number=dva.get("account_number", ""),
             virtual_account_name=dva.get("account_name", ""),
             checkout_url=checkout_url,
+        )
+        AuditLog.objects.create(
+            actor=user,
+            action="payment.initiated",
+            target_type=purpose,
+            target_id=str(campaign.pk if campaign else tx.pk),
+            metadata={"reference": ref, "amount_ngn": str(amount_ngn)},
+            ip_hash=ip_hash,
         )
         if campaign:
             campaign.payment_reference = ref
@@ -310,6 +364,15 @@ class PaystackGateway:
             tx.raw_webhook = raw
             tx.save(update_fields=["status", "paid_at", "raw_webhook", "updated_at"])
 
+            from .models import AuditLog
+            AuditLog.objects.create(
+                actor=tx.user,
+                action="payment.fulfilled",
+                target_type=tx.purpose,
+                target_id=str(tx.campaign_id or tx.pk),
+                metadata={"reference": tx.reference, "amount_ngn": str(amount_ngn)},
+            )
+
             if tx.purpose == PaymentTransaction.Purpose.AD_CAMPAIGN and tx.campaign_id:
                 camp = Campaign.objects.select_for_update().filter(pk=tx.campaign_id).first()
                 if camp:
@@ -317,14 +380,14 @@ class PaystackGateway:
                     camp.payment_reference = reference or tx.reference
                     camp.save(update_fields=["payment_status", "payment_reference", "updated_at"])
                     notify(
-                        recipient=tx.user,
+                        tx.user,
                         notif_type=Notification.Type.SYSTEM,
                         text=f"Payment of ₦{amount_ngn:,.0f} confirmed for ad campaign “{camp.name}”.",
                         link="/ads",
                     )
             elif tx.purpose == PaymentTransaction.Purpose.STUDENT_VERIFICATION:
                 notify(
-                    recipient=tx.user,
+                    tx.user,
                     notif_type=Notification.Type.SYSTEM,
                     text=f"Your ₦{amount_ngn:,.0f} student verification payment is confirmed! Your badge application is prioritized for admin review.",
                     link="/profile?tab=verification",

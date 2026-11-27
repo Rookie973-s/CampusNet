@@ -69,13 +69,67 @@ class AppBottomSheet {
   }
 }
 
-/// Theme-aware Sculpted Claymorphism Card (soft pillowy edges & shadows, no hard solid borders!).
+/// Tactile Raised 3D Claymorphism Icon Pill (soft pillowy dual-shadow circular badge).
+class ClayIconPill extends StatelessWidget {
+  const ClayIconPill({
+    super.key,
+    required this.icon,
+    required this.color,
+    this.size = 38,
+    this.iconSize,
+  });
+
+  final IconData icon;
+  final Color color;
+  final double size;
+  final double? iconSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = context.isDark;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.lerp(color, Colors.white, isDark ? 0.18 : 0.28)!,
+            color,
+            Color.lerp(color, Colors.black, 0.16)!,
+          ],
+        ),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: isDark ? 0.22 : 0.65),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: isDark ? 0.38 : 0.34),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+          BoxShadow(
+            color: Colors.white.withValues(alpha: isDark ? 0.08 : 0.65),
+            blurRadius: 4,
+            offset: const Offset(-2, -2),
+          ),
+        ],
+      ),
+      child: Icon(icon, size: iconSize ?? size * 0.5, color: Colors.white),
+    );
+  }
+}
+
+/// Theme-aware Sculpted 3D Claymorphism Card (soft pillowy edges, luminous top-left rim & dual depth shadows).
 class MorphismCard extends StatelessWidget {
   const MorphismCard({
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(16),
-    this.radius = 22,
+    this.radius = 24,
     this.color,
   });
 
@@ -89,26 +143,42 @@ class MorphismCard extends StatelessWidget {
     final c = context.cn;
     final isDark = context.isDark;
     final base = color ?? c.surface;
+    final topTint = isDark
+        ? Color.lerp(base, Colors.white, 0.045)!
+        : Color.lerp(base, Colors.white, 0.55)!;
+    final bottomTint = isDark
+        ? Color.lerp(base, Colors.black, 0.12)!
+        : Color.lerp(base, const Color(0xFFDCE4F2), 0.18)!;
+
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: base,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [topTint, base, bottomTint],
+        ),
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.white.withValues(alpha: 0.85),
-          width: 1.0,
+          color: isDark ? Colors.white.withValues(alpha: 0.09) : Colors.white.withValues(alpha: 0.92),
+          width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: isDark ? Colors.black.withValues(alpha: 0.42) : const Color(0xFF0F172A).withValues(alpha: 0.06),
-            blurRadius: 18,
-            spreadRadius: -2,
-            offset: const Offset(0, 8),
+            color: isDark ? Colors.black.withValues(alpha: 0.52) : const Color(0xFF1E293B).withValues(alpha: 0.10),
+            blurRadius: 22,
+            spreadRadius: -3,
+            offset: const Offset(0, 11),
           ),
           BoxShadow(
-            color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.white.withValues(alpha: 0.80),
-            blurRadius: 6,
-            offset: const Offset(-2, -2),
+            color: isDark ? Colors.black.withValues(alpha: 0.30) : const Color(0xFF0F172A).withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+          BoxShadow(
+            color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.white.withValues(alpha: 0.95),
+            blurRadius: 8,
+            offset: const Offset(-3, -3),
           ),
         ],
       ),
@@ -117,13 +187,13 @@ class MorphismCard extends StatelessWidget {
   }
 }
 
-/// Impeller-safe Glassmorphism container wrapped in RepaintBoundary (with solid fallback).
+/// Impeller-safe Glass + Clay combined container (frosted backdrop blur + tactile 3D clay rim & pillowy depth).
 class GlassContainer extends StatelessWidget {
   const GlassContainer({
     super.key,
     required this.child,
-    this.radius = 24,
-    this.sigma = 14,
+    this.radius = 26,
+    this.sigma = 16,
     this.color,
     this.padding = EdgeInsets.zero,
   });
@@ -137,25 +207,49 @@ class GlassContainer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.cn;
+    final isDark = context.isDark;
     final reduced = LiquidSprings.reducedMotion(context);
     final inner = Container(
       padding: padding,
       decoration: BoxDecoration(
         color: color ?? c.glassFill,
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: c.glassBorder, width: 1),
+        border: Border.all(
+          color: isDark ? Colors.white.withValues(alpha: 0.14) : Colors.white.withValues(alpha: 0.88),
+          width: 1.25,
+        ),
       ),
       child: child,
     );
-    if (reduced) return ClipRRect(borderRadius: BorderRadius.circular(radius), child: inner);
-    return RepaintBoundary(
-      child: ClipRRect(
+    final clipped = reduced
+        ? ClipRRect(borderRadius: BorderRadius.circular(radius), child: inner)
+        : RepaintBoundary(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(radius),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+                child: inner,
+              ),
+            ),
+          );
+    return Container(
+      decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-          child: inner,
-        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black.withValues(alpha: 0.45) : const Color(0xFF0F172A).withValues(alpha: 0.11),
+            blurRadius: 20,
+            spreadRadius: -3,
+            offset: const Offset(0, 9),
+          ),
+          BoxShadow(
+            color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.white.withValues(alpha: 0.78),
+            blurRadius: 6,
+            offset: const Offset(-2, -2),
+          ),
+        ],
       ),
+      child: clipped,
     );
   }
 }

@@ -68,7 +68,10 @@ class CampaignSerializer(serializers.ModelSerializer):
             return None
         req = self.context.get("request")
         url = obj.image.url
-        return req.build_absolute_uri(url) if req else url
+        abs_url = req.build_absolute_uri(url) if req else url
+        if abs_url.startswith("http://") and not any(h in abs_url for h in ("127.0.0.1", "localhost")):
+            abs_url = "https://" + abs_url[len("http://"):]
+        return abs_url
 
     def get_impressions_count(self, obj):
         return getattr(obj, "n_impressions", None) if hasattr(obj, "n_impressions") else obj.impressions.count()
@@ -94,7 +97,7 @@ class CampaignSerializer(serializers.ModelSerializer):
 
     def get_payment_gateway_status(self, obj):
         from .payments import get_payment_gateway
-        return "paystack_live" if get_payment_gateway().is_enabled() else "coming_soon"
+        return "paystack_live" if get_payment_gateway().is_enabled() else "paystack_unconfigured"
 
     def validate_image(self, f):
         if not f:

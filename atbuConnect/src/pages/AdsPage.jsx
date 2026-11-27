@@ -351,8 +351,17 @@ export default function AdsPage({ user, onLogin, toast }) {
                                 <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", padding: "3px 9px", borderRadius: 99, background: st.bg, color: st.c }}>
                                   {c.status}
                                 </span>
-                                <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "var(--surfA)", color: "var(--mut)" }}>
-                                  Payment Coming Soon
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    padding: "2px 8px",
+                                    borderRadius: 99,
+                                    background: c.payment_status === "paid" ? "rgba(16,185,129,.16)" : "rgba(245,158,11,.15)",
+                                    color: c.payment_status === "paid" ? "#059669" : "#D97706",
+                                  }}
+                                >
+                                  {c.payment_status === "paid" ? "Paid ✓" : c.payment_status === "pending" ? "Awaiting Confirmation" : "Unpaid"}
                                 </span>
                               </div>
                               <div style={{ fontSize: 12.5, color: "var(--mut)", marginTop: 2 }}>
@@ -379,9 +388,11 @@ export default function AdsPage({ user, onLogin, toast }) {
                                 Resume
                               </button>
                             )}
-                            <button type="button" className="btn btn-out" style={{ height: 34, minHeight: 34, padding: "0 12px", fontSize: 12 }} onClick={() => handlePaymentClick(c.id)}>
-                              Pay (Coming Soon)
-                            </button>
+                            {c.payment_status !== "paid" && (
+                              <button type="button" className="btn btn-pri" style={{ height: 34, minHeight: 34, padding: "0 12px", fontSize: 12 }} onClick={() => handlePaymentClick(c.id)}>
+                                Pay with Paystack
+                              </button>
+                            )}
                           </div>
                         </div>
                       );

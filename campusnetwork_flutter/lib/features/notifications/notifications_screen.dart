@@ -86,6 +86,13 @@ class NotificationsScreen extends ConsumerWidget {
                   return LiquidTap(
                     onTap: () {
                       ref.read(notificationsProvider.notifier).markRead(n.id);
+                      if (n.link.startsWith('/q/')) {
+                        final qid = n.link.replaceFirst('/q/', '').split('?').first.trim();
+                        if (qid.isNotEmpty) {
+                          context.push('/question/$qid');
+                          return;
+                        }
+                      }
                       if (n.link.startsWith('/chats')) {
                         context.push('/chats');
                       } else if (n.link.startsWith('/communities/')) {
@@ -93,6 +100,8 @@ class NotificationsScreen extends ConsumerWidget {
                         context.push('/community/$slug');
                       } else if (n.link.startsWith('/communities')) {
                         context.push('/communities');
+                      } else if (n.link.startsWith('/ads')) {
+                        context.push('/ads');
                       } else if (n.link.startsWith('/sug')) {
                         context.go('/sug');
                       } else if (n.link.startsWith('/profile')) {

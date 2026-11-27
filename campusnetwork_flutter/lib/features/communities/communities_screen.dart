@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/models/models.dart';
 import '../../core/motion/liquid_motion.dart';
@@ -12,6 +14,7 @@ import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/form_templates.dart';
 import '../../core/widgets/morphism_widgets.dart';
+import '../../core/widgets/rich_mention_text.dart';
 import '../../core/widgets/skeleton_widgets.dart';
 import '../auth/auth_provider.dart';
 import '../auth/landing_screen.dart';
@@ -706,6 +709,7 @@ class _CommunityDetailScreenState extends ConsumerState<CommunityDetailScreen> {
   void _openPublishPost() {
     final titleCtrl = TextEditingController();
     final bodyCtrl = TextEditingController();
+    XFile? pickedImage;
     bool important = false;
     bool busy = false;
 
@@ -733,7 +737,26 @@ class _CommunityDetailScreenState extends ConsumerState<CommunityDetailScreen> {
                   icon: Icons.edit_note_rounded,
                   maxLines: 4,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 11),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(44),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  onPressed: busy
+                      ? null
+                      : () async {
+                          final img = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85, maxWidth: 1400);
+                          if (img != null) setS(() => pickedImage = img);
+                        },
+                  icon: Icon(pickedImage == null ? Icons.add_photo_alternate_outlined : Icons.check_circle_rounded, size: 19),
+                  label: Text(
+                    pickedImage == null ? 'Attach Photo (optional)' : 'Photo attached: ${pickedImage!.name}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(height: 6),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Mark as Important'),
@@ -746,19 +769,140 @@ class _CommunityDetailScreenState extends ConsumerState<CommunityDetailScreen> {
                   onTap: busy
                       ? null
                       : () async {
-                          if (bodyCtrl.text.trim().isEmpty) return;
+                          if (bodyCtrl.text.trim().isEmpty && pickedImage == null) return;
                           setS(() => busy = true);
                           try {
+                            final form = FormData();
+                            form.fields.addAll([
+                              MapEntry('title', titleCtrl.text.trim()),
+                              MapEntry('body', bodyCtrl.text.trim()),
+                              MapEntry('is_important', important ? 'true' : 'false'),
+                            ]);
+                            if (pickedImage != null) {
+                              form.files.add(
+                                MapEntry(
+                                  'image',
+                                  await MultipartFile.fromFile(pickedImage!.path, filename: pickedImage!.name),
+                                ),
+                              );
+                            }
                             await ref.read(apiClientProvider).dio.post(
                                   '/communities/${widget.slug}/posts/',
-                                  data: {
-                                    'title': titleCtrl.text.trim(),
-                                    'body': bodyCtrl.text.trim(),
-                                    'is_important': important,
-                                  },
+                                  data: form,
                                 );
                             if (ctx.mounted) Navigator.of(ctx).pop();
                             _load();
+                          } catch (e) {
+                            setS(() => busy = false);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(parseApiError(e))));
+                            }
+                          }
+                        },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openEditCommunity() {
+    final comm = _comm;
+    if (comm == null) return;
+    final descCtrl = TextEditingController(text: (comm['description'] ?? '').toString());
+    final rulesCtrl = TextEditingController(text: (comm['rules'] ?? '').toString());
+    XFile? avatarFile;
+    XFile? coverFile;
+    bool busy = false;
+
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (ctx, setS) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: CurvedGreenFormSheet(
+            title: 'Manage Community',
+            subtitle: 'Update profile picture, cover photo, bio & rules',
+            headerHeight: 118,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        onPressed: busy
+                            ? null
+                            : () async {
+                                final f = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85, maxWidth: 600);
+                                if (f != null) setS(() => avatarFile = f);
+                              },
+                        icon: Icon(avatarFile == null ? Icons.account_circle_outlined : Icons.check_circle_rounded, size: 18),
+                        label: Text(avatarFile == null ? 'Avatar Photo' : 'Avatar Ready', maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        onPressed: busy
+                            ? null
+                            : () async {
+                                final f = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85, maxWidth: 1600);
+                                if (f != null) setS(() => coverFile = f);
+                              },
+                        icon: Icon(coverFile == null ? Icons.panorama_outlined : Icons.check_circle_rounded, size: 18),
+                        label: Text(coverFile == null ? 'Cover Photo' : 'Cover Ready', maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SageInputField(controller: descCtrl, hint: 'Community Bio / Description', icon: Icons.info_outline_rounded, maxLines: 3),
+                const SizedBox(height: 11),
+                SageInputField(controller: rulesCtrl, hint: 'Community Rules (optional)', icon: Icons.gavel_rounded, maxLines: 3),
+                const SizedBox(height: 16),
+                ForestPillButton(
+                  label: busy ? 'Saving Changes...' : 'Save Community',
+                  onTap: busy
+                      ? null
+                      : () async {
+                          setS(() => busy = true);
+                          try {
+                            final oldAvatar = normalizeMediaUrl(comm['avatar_url']?.toString());
+                            final oldCover = normalizeMediaUrl(comm['cover_url']?.toString());
+                            final form = FormData();
+                            form.fields.addAll([
+                              MapEntry('description', descCtrl.text.trim()),
+                              MapEntry('rules', rulesCtrl.text.trim()),
+                            ]);
+                            if (avatarFile != null) {
+                              form.files.add(MapEntry('avatar', await MultipartFile.fromFile(avatarFile!.path, filename: avatarFile!.name)));
+                            }
+                            if (coverFile != null) {
+                              form.files.add(MapEntry('cover_image', await MultipartFile.fromFile(coverFile!.path, filename: coverFile!.name)));
+                            }
+                            await ref.read(apiClientProvider).dio.patch('/communities/${widget.slug}/', data: form);
+                            if (oldAvatar != null) await CachedNetworkImage.evictFromCache(oldAvatar);
+                            if (oldCover != null) await CachedNetworkImage.evictFromCache(oldCover);
+                            if (ctx.mounted) Navigator.of(ctx).pop();
+                            await _load();
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Community updated!')));
+                            }
                           } catch (e) {
                             setS(() => busy = false);
                             if (mounted) {
@@ -782,13 +926,21 @@ class _CommunityDetailScreenState extends ConsumerState<CommunityDetailScreen> {
     final currentUserId = ref.watch(authProvider.select((s) => s.user?.id));
     final myRole = (comm?['my_role'] ?? '').toString();
     final canPublish = comm?['can_publish'] == true || myRole == 'owner' || myRole == 'admin' || myRole == 'moderator';
+    final canManage = comm?['can_manage'] == true || myRole == 'owner' || myRole == 'admin';
     final accentColor = hexToColor((comm?['accent_color'] ?? '#2563EB').toString());
+    final coverUrl = normalizeMediaUrl(comm?['cover_url']?.toString() ?? comm?['cover_image']?.toString());
 
     return Scaffold(
       backgroundColor: cn.bg,
       appBar: AppBar(
         title: Text((comm?['name'] ?? 'Community').toString(), style: TextStyle(fontWeight: FontWeight.w900, color: cn.textPrimary)),
         actions: [
+          if (canManage)
+            IconButton(
+              icon: Icon(Icons.tune_rounded, color: cn.textPrimary),
+              tooltip: 'Edit Community',
+              onPressed: _openEditCommunity,
+            ),
           if (canPublish)
             IconButton(
               icon: Icon(Icons.edit_note_rounded, color: cn.accentLight),
@@ -807,6 +959,16 @@ class _CommunityDetailScreenState extends ConsumerState<CommunityDetailScreen> {
                   child: ListView(
                     padding: const EdgeInsets.only(bottom: 48),
                     children: [
+                      if (coverUrl != null && coverUrl.isNotEmpty)
+                        SizedBox(
+                          height: 136,
+                          width: double.infinity,
+                          child: CachedNetworkImage(
+                            imageUrl: coverUrl,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                          ),
+                        ),
                       // Header banner
                       Container(
                         padding: const EdgeInsets.all(18),
@@ -1054,13 +1216,13 @@ class _ClayCommunityPostCard extends StatelessWidget {
             ),
             if ((post['title'] ?? '').toString().isNotEmpty) ...[
               const SizedBox(height: 12),
-              Text(
+              RichMentionText(
                 post['title'].toString(),
                 style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900, color: cn.textPrimary, height: 1.25),
               ),
             ],
             const SizedBox(height: 6),
-            Text(
+            RichMentionText(
               (post['body'] ?? '').toString(),
               style: TextStyle(fontSize: 14.5, height: 1.5, color: cn.textPrimary),
             ),

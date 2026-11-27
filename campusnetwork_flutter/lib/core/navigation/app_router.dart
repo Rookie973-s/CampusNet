@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -21,6 +21,25 @@ import '../../features/sug/chats_screen.dart';
 import '../../features/sug/sug_screen.dart';
 import '../models/models.dart';
 import 'app_shell.dart';
+
+CustomTransitionPage<T> _smoothPage<T>(GoRouterState state, Widget child) {
+  return CustomTransitionPage<T>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 240),
+    reverseTransitionDuration: const Duration(milliseconds: 200),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(begin: const Offset(0, 0.035), end: Offset.zero).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
 
 /// Notifies GoRouter ONLY when routing-relevant auth flags change
 /// (booting / isAuthenticated / guestEntered) — NEVER when user profile data refreshes!
@@ -92,31 +111,35 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/question/:id',
-        builder: (_, state) => QuestionDetailScreen(
-          questionId: state.pathParameters['id']!,
-          initialQuestion: state.extra is QuestionItem ? state.extra as QuestionItem : null,
+        pageBuilder: (_, state) => _smoothPage(
+          state,
+          QuestionDetailScreen(
+            questionId: state.pathParameters['id']!,
+            initialQuestion: state.extra is QuestionItem ? state.extra as QuestionItem : null,
+          ),
         ),
       ),
       GoRoute(
         path: '/user/:id',
-        builder: (_, state) => PublicProfileScreen(
-          userId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
+        pageBuilder: (_, state) => _smoothPage(
+          state,
+          PublicProfileScreen(userId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0),
         ),
       ),
-      GoRoute(path: '/search', builder: (_, __) => const SearchScreen()),
-      GoRoute(path: '/communities', builder: (_, __) => const CommunitiesScreen()),
-      GoRoute(path: '/my-communities', builder: (_, __) => const CommunitiesScreen(mineOnly: true)),
+      GoRoute(path: '/search', pageBuilder: (_, state) => _smoothPage(state, const SearchScreen())),
+      GoRoute(path: '/communities', pageBuilder: (_, state) => _smoothPage(state, const CommunitiesScreen())),
+      GoRoute(path: '/my-communities', pageBuilder: (_, state) => _smoothPage(state, const CommunitiesScreen(mineOnly: true))),
       GoRoute(
         path: '/community/:slug',
-        builder: (_, state) => CommunityDetailScreen(slug: state.pathParameters['slug']!),
+        pageBuilder: (_, state) => _smoothPage(state, CommunityDetailScreen(slug: state.pathParameters['slug']!)),
       ),
-      GoRoute(path: '/chats', builder: (_, state) => ChatsScreen(initialConvoId: state.extra as int?)),
-      GoRoute(path: '/apply-sug', builder: (_, __) => const ApplySugScreen()),
-      GoRoute(path: '/notifications', builder: (_, __) => const NotificationsScreen()),
-      GoRoute(path: '/settings', builder: (_, __) => const AccountSettingsScreen()),
-      GoRoute(path: '/verification', builder: (_, __) => const StudentVerificationScreen()),
-      GoRoute(path: '/ads', builder: (_, __) => const AdsDashboardScreen()),
-      GoRoute(path: '/about', builder: (_, __) => const AboutScreen()),
+      GoRoute(path: '/chats', pageBuilder: (_, state) => _smoothPage(state, ChatsScreen(initialConvoId: state.extra as int?))),
+      GoRoute(path: '/apply-sug', pageBuilder: (_, state) => _smoothPage(state, const ApplySugScreen())),
+      GoRoute(path: '/notifications', pageBuilder: (_, state) => _smoothPage(state, const NotificationsScreen())),
+      GoRoute(path: '/settings', pageBuilder: (_, state) => _smoothPage(state, const AccountSettingsScreen())),
+      GoRoute(path: '/verification', pageBuilder: (_, state) => _smoothPage(state, const StudentVerificationScreen())),
+      GoRoute(path: '/ads', pageBuilder: (_, state) => _smoothPage(state, const AdsDashboardScreen())),
+      GoRoute(path: '/about', pageBuilder: (_, state) => _smoothPage(state, const AboutScreen())),
     ],
   );
 });

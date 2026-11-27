@@ -12,6 +12,7 @@ import '../../core/motion/liquid_motion.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/morphism_widgets.dart';
+import '../../core/widgets/rich_mention_text.dart';
 import '../../core/widgets/skeleton_widgets.dart';
 import '../auth/auth_provider.dart';
 import '../auth/landing_screen.dart';
@@ -485,10 +486,44 @@ class PostTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.cn;
+    final isDark = context.isDark;
     final user = ref.watch(authProvider.select((s) => s.user));
+    final depts = ref.watch(departmentsProvider).valueOrNull ?? const <DepartmentItem>[];
     final firstImg = q.media.where((m) => m.kind == 'image' && m.url.isNotEmpty).firstOrNull?.url;
 
-    return Padding(
+    // Faculty-colored subtle clay background ONLY when posted to a specific faculty (NOT General / All Faculties).
+    // Strictly NO card border (keeps X-style edge-to-edge feed separation).
+    final deptClean = q.dept.trim();
+    final hasSpecificFaculty = deptClean.isNotEmpty &&
+        deptClean.toLowerCase() != 'general' &&
+        deptClean.toLowerCase() != 'all' &&
+        deptClean.toLowerCase() != 'all faculties';
+    Color? facultyTint;
+    if (hasSpecificFaculty) {
+      final matched = depts.where((d) => d.name.toLowerCase() == deptClean.toLowerCase()).firstOrNull;
+      facultyTint = matched != null
+          ? hexToColor(matched.color, fallback: const Color(0xFF2563EB))
+          : _fallbackFacultyColor(deptClean);
+    }
+
+    return Container(
+      decoration: facultyTint != null
+          ? BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: isDark
+                    ? [
+                        Color.lerp(c.background, facultyTint, 0.14)!,
+                        Color.lerp(c.background, facultyTint, 0.05)!,
+                      ]
+                    : [
+                        Color.lerp(Colors.white, facultyTint, 0.11)!,
+                        Color.lerp(Colors.white, facultyTint, 0.03)!,
+                      ],
+              ),
+            )
+          : null,
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -531,10 +566,10 @@ class PostTile extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (q.title.isNotEmpty)
-                  Text(q.title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, height: 1.3, color: c.textPrimary)),
+                  RichMentionText(q.title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, height: 1.3, color: c.textPrimary)),
                 if (q.body.isNotEmpty && q.body != q.title) ...[
                   const SizedBox(height: 4),
-                  Text(
+                  RichMentionText(
                     q.body,
                     maxLines: 5,
                     overflow: TextOverflow.ellipsis,
@@ -701,6 +736,19 @@ class PostTile extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Color _fallbackFacultyColor(String name) {
+    const palette = [
+      Color(0xFF2563EB),
+      Color(0xFF059669),
+      Color(0xFF7C3AED),
+      Color(0xFFD97706),
+      Color(0xFFDB2777),
+      Color(0xFF0891B2),
+    ];
+    final idx = name.codeUnits.fold<int>(0, (a, b) => a + b) % palette.length;
+    return palette[idx];
   }
 
   void _openEditModal(BuildContext context, WidgetRef ref) {

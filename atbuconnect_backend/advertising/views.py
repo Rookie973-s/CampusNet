@@ -75,7 +75,7 @@ class CampaignViewSet(viewsets.ModelViewSet):
         serializer.save(
             advertiser=self.request.user,
             status=initial_status,
-            payment_status=Campaign.PaymentStatus.COMING_SOON,
+            payment_status=Campaign.PaymentStatus.UNPAID,
         )
 
     def partial_update(self, request, *args, **kwargs):
@@ -197,12 +197,24 @@ class CampaignViewSet(viewsets.ModelViewSet):
         camp = self.get_object()
         if camp.advertiser_id != request.user.pk and not is_admin_or_mod(request.user):
             return Response({"detail": "Not authorized."}, status=403)
+        if camp.payment_status == Campaign.PaymentStatus.PAID:
+            return Response({
+                "enabled": True,
+                "status": "paid",
+                "already_paid": True,
+                "message": "This campaign is already paid.",
+                "amount_ngn": str(camp.total_budget),
+                "reference": camp.payment_reference,
+            })
+        idem_key = request.headers.get("Idempotency-Key") or request.data.get("idempotency_key") or ""
         gw = get_payment_gateway()
         res = gw.initiate_payment(
             user=request.user,
             amount_ngn=camp.total_budget,
             purpose=PaymentTransaction.Purpose.AD_CAMPAIGN,
             campaign=camp,
+            idempotency_key=idem_key,
+            ip_hash=hash_ip(request),
         )
         return Response({
             "enabled": res.enabled,
@@ -214,6 +226,7 @@ class CampaignViewSet(viewsets.ModelViewSet):
             "account_number": res.account_number,
             "account_name": res.account_name,
             "checkout_url": res.checkout_url,
+            "authorization_url": res.checkout_url,
         })
 
     @action(detail=False, methods=["get"])
@@ -470,11 +483,14 @@ class InitiateVerificationPaymentView(APIView):
     def post(self, request):
         if request.user.is_verified_student:
             return Response({"detail": "Your student account is already verified."}, status=400)
+        idem_key = request.headers.get("Idempotency-Key") or request.data.get("idempotency_key") or ""
         gw = get_payment_gateway()
         res = gw.initiate_payment(
             user=request.user,
             amount_ngn=VERIFICATION_FEE_NGN,
             purpose=PaymentTransaction.Purpose.STUDENT_VERIFICATION,
+            idempotency_key=idem_key,
+            ip_hash=hash_ip(request),
         )
         return Response({
             "enabled": res.enabled,
@@ -486,4 +502,5 @@ class InitiateVerificationPaymentView(APIView):
             "account_number": res.account_number,
             "account_name": res.account_name,
             "checkout_url": res.checkout_url,
+            "authorization_url": res.checkout_url,
         })

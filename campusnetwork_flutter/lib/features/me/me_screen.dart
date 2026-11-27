@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -103,12 +104,20 @@ class _MeScreenState extends ConsumerState<MeScreen> {
   Future<void> _quickUploadAvatar() async {
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85, maxWidth: 900);
     if (picked == null) return;
+    final oldUrl = ref.read(authProvider).user?.avatarUrl;
     try {
       final form = FormData.fromMap({
         'avatar': await MultipartFile.fromFile(picked.path, filename: picked.name),
       });
       final res = await ref.read(apiClientProvider).dio.post('/auth/me/avatar/', data: form);
-      ref.read(authProvider.notifier).updateUser(CNUser.fromJson(Map<String, dynamic>.from(res.data as Map)));
+      final updated = CNUser.fromJson(Map<String, dynamic>.from(res.data as Map));
+      if (oldUrl != null && oldUrl.isNotEmpty) {
+        await CachedNetworkImage.evictFromCache(oldUrl);
+      }
+      if (updated.avatarUrl != null && updated.avatarUrl!.isNotEmpty) {
+        await CachedNetworkImage.evictFromCache(updated.avatarUrl!);
+      }
+      ref.read(authProvider.notifier).updateUser(updated);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile picture updated!')));
       }

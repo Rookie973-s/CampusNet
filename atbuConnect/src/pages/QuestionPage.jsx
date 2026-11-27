@@ -14,6 +14,7 @@ import {
   voteAnswer, deleteAnswer, reportAnswer,
 } from '../api/questions';
 import { serveAds } from '../api/ads';
+import { normalizeMediaUrl } from '../api/client';
 
 const SORT_OPTIONS = [
   { key: "recent", label: "Most Recent" },
@@ -23,8 +24,26 @@ const SORT_OPTIONS = [
   { key: "recommended", label: "Recommended" },
 ];
 
+/** Flatten arbitrarily nested replies onto a single uniform indented rail (no staircase squishing). */
+function flattenReplies(root) {
+  const out = [];
+  const walk = (node, showReplyingTo) => {
+    const parentHandle = node.username || node.user || "";
+    const kids = node.replies || [];
+    for (const child of kids) {
+      out.push({
+        item: child,
+        replyingTo: showReplyingTo && parentHandle ? parentHandle : null,
+      });
+      walk(child, true);
+    }
+  };
+  walk(root, false);
+  return out;
+}
+
 function CommentItem({
-  c, depth = 0, user, onLogin, toast, onOpenProfile, onOpenMention, onVote, onReplySubmit, onDelete, onReport,
+  c, depth = 0, replyingTo = null, user, onLogin, toast, onOpenProfile, onOpenMention, onVote, onReplySubmit, onDelete, onReport,
 }) {
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -81,6 +100,12 @@ function CommentItem({
             <span className="cmt-time" title={exactDate}>{c.time}</span>
           </div>
 
+          {replyingTo && (
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--accent)", marginBottom: 3 }}>
+              Replying to @{replyingTo}
+            </div>
+          )}
+
           <RichTextView
             body={c.body}
             bodyHtml={c.bodyHtml}
@@ -90,7 +115,12 @@ function CommentItem({
 
           {c.imageUrl && (
             <div className="cmt-img-wrap">
-              <img src={c.imageUrl} alt="Comment attachment" loading="lazy" />
+              <img
+                src={normalizeMediaUrl(c.imageUrl)}
+                alt="Comment attachment"
+                loading="lazy"
+                onError={(e) => { e.currentTarget.style.display = "none"; }}
+              />
             </div>
           )}
 
@@ -168,32 +198,37 @@ function CommentItem({
             </div>
           )}
 
-          {/* Nested threaded replies with connector line & collapse toggle */}
-          {c.replies && c.replies.length > 0 && (
-            <div className="cmt-thread">
-              {c.replies.length > 2 && (
-                <button type="button" className="cmt-collapse-btn" onClick={() => setCollapsed((x) => !x)}>
-                  {collapsed ? `Show ${c.replies.length} replies` : `Hide ${c.replies.length} replies`}
-                </button>
-              )}
-              {!collapsed && c.replies.map((child) => (
-                <CommentItem
-                  key={child.id}
-                  c={child}
-                  depth={depth + 1}
-                  user={user}
-                  onLogin={onLogin}
-                  toast={toast}
-                  onOpenProfile={onOpenProfile}
-                  onOpenMention={onOpenMention}
-                  onVote={onVote}
-                  onReplySubmit={onReplySubmit}
-                  onDelete={onDelete}
-                  onReport={onReport}
-                />
-              ))}
-            </div>
-          )}
+          {/* All replies rendered on ONE uniform indented straight-line rail (depth === 0 only) */}
+          {depth === 0 && (() => {
+            const flat = flattenReplies(c);
+            if (!flat.length) return null;
+            return (
+              <div className="cmt-thread">
+                {flat.length > 2 && (
+                  <button type="button" className="cmt-collapse-btn" onClick={() => setCollapsed((x) => !x)}>
+                    {collapsed ? `Show ${flat.length} replies` : `Hide ${flat.length} replies`}
+                  </button>
+                )}
+                {!collapsed && flat.map(({ item, replyingTo: toHandle }) => (
+                  <CommentItem
+                    key={item.id}
+                    c={item}
+                    depth={1}
+                    replyingTo={toHandle}
+                    user={user}
+                    onLogin={onLogin}
+                    toast={toast}
+                    onOpenProfile={onOpenProfile}
+                    onOpenMention={onOpenMention}
+                    onVote={onVote}
+                    onReplySubmit={onReplySubmit}
+                    onDelete={onDelete}
+                    onReport={onReport}
+                  />
+                ))}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>

@@ -2,7 +2,6 @@ import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/models/models.dart';
 import '../../core/motion/liquid_motion.dart';
@@ -10,6 +9,7 @@ import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/form_templates.dart';
 import '../../core/widgets/morphism_widgets.dart';
+import '../../core/widgets/paystack_sheet.dart';
 import '../../core/widgets/skeleton_widgets.dart';
 import '../auth/auth_provider.dart';
 import 'liveness_camera.dart';
@@ -110,16 +110,25 @@ class _StudentVerificationScreenState extends ConsumerState<StudentVerificationS
   Future<void> _initiatePayment() async {
     setState(() => _busy = true);
     try {
-      final res = await ref.read(apiClientProvider).dio.post('/verification/initiate-payment/');
+      final api = ref.read(apiClientProvider);
+      final res = await api.dio.post('/verification/initiate-payment/');
       final d = Map<String, dynamic>.from(res.data as Map);
-      final url = d['authorization_url']?.toString();
       _paymentRef = d['reference']?.toString();
       if (d['already_paid'] == true || d['status'] == 'paid') {
         setState(() => _paid = true);
         _toast('Payment confirmed!');
-      } else if (url != null && url.isNotEmpty) {
-        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-        _toast('Complete payment in your browser, then tap "Verify Payment".');
+        return;
+      }
+      if (!mounted) return;
+      setState(() => _busy = false);
+      final verified = await showPaystackPaymentSheet(
+        context,
+        api: api,
+        payload: d,
+        title: 'Student Verification Fee',
+      );
+      if (verified) {
+        await _verifyPayment();
       }
     } catch (e) {
       _toast(parseApiError(e));

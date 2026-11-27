@@ -5,7 +5,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/models/models.dart';
 import '../../core/motion/liquid_motion.dart';
@@ -13,6 +12,7 @@ import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/form_templates.dart';
 import '../../core/widgets/morphism_widgets.dart';
+import '../../core/widgets/paystack_sheet.dart';
 import '../../core/widgets/skeleton_widgets.dart';
 import '../auth/auth_provider.dart';
 import '../auth/landing_screen.dart';
@@ -87,13 +87,26 @@ class _AdsDashboardScreenState extends ConsumerState<AdsDashboardScreen> {
 
   Future<void> _payExisting(Map<String, dynamic> camp) async {
     try {
-      final res = await ref.read(apiClientProvider).dio.post('/ads/${camp['id']}/initiate-payment/');
-      final url = res.data['authorization_url']?.toString();
-      if (url != null && url.isNotEmpty) {
-        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-      } else {
+      final api = ref.read(apiClientProvider);
+      final res = await api.dio.post('/ads/${camp['id']}/initiate-payment/');
+      final d = Map<String, dynamic>.from(res.data as Map);
+      if (d['already_paid'] == true || d['status'] == 'paid') {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Campaign is already paid!')));
         _load();
+        return;
       }
+      if (!mounted) return;
+      final label = (camp['name'] ?? camp['headline'] ?? 'Campus Ad').toString();
+      final verified = await showPaystackPaymentSheet(
+        context,
+        api: api,
+        payload: d,
+        title: 'Pay for $label',
+      );
+      if (verified && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment confirmed!')));
+      }
+      _load();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(parseApiError(e))));
     }
@@ -170,9 +183,10 @@ class _AdsDashboardScreenState extends ConsumerState<AdsDashboardScreen> {
   }
 
   Widget _buildDashboardBody(CampusColors cn) {
-    final totalImpressions = (_analytics['impressions'] ?? _analytics['total_impressions'] ?? 0);
-    final totalClicks = (_analytics['clicks'] ?? _analytics['total_clicks'] ?? 0);
-    final ctr = (_analytics['ctr'] ?? 0);
+    final summary = _analytics['summary'] is Map ? Map<String, dynamic>.from(_analytics['summary'] as Map) : const <String, dynamic>{};
+    final totalImpressions = (summary['total_impressions'] ?? _analytics['impressions'] ?? _analytics['total_impressions'] ?? 0);
+    final totalClicks = (summary['total_clicks'] ?? _analytics['clicks'] ?? _analytics['total_clicks'] ?? 0);
+    final ctr = (summary['ctr'] ?? _analytics['ctr'] ?? 0);
     final daily = (_analytics['daily'] as List? ?? [])
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
@@ -339,7 +353,10 @@ class _AdsDashboardScreenState extends ConsumerState<AdsDashboardScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    (c['title'] ?? 'Untitled Ad').toString(),
+                    ((c['name'] ?? '').toString().trim().isNotEmpty
+                            ? c['name']
+                            : ((c['headline'] ?? '').toString().trim().isNotEmpty ? c['headline'] : (c['title'] ?? 'Campaign')))
+                        .toString(),
                     style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15.5, color: cn.textPrimary),
                   ),
                 ),
@@ -534,16 +551,27 @@ class _AdWizardScreenState extends ConsumerState<_AdWizardScreen> {
       }
       final createRes = await api.dio.post('/ads/', data: form);
       final adId = createRes.data['id'];
+      Map<String, dynamic>? payData;
       try {
         final payRes = await api.dio.post('/ads/$adId/initiate-payment/');
-        final url = (payRes.data['checkout_url'] ?? payRes.data['authorization_url'])?.toString();
-        if (url != null && url.isNotEmpty) {
-          await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-        }
+        if (payRes.data is Map) payData = Map<String, dynamic>.from(payRes.data as Map);
       } catch (_) {}
       if (mounted) {
-        _toast('Campaign created! Complete payment if prompted.');
-        Navigator.of(context).pop(true);
+        setState(() => _submitting = false);
+        if (payData != null) {
+          final verified = await showPaystackPaymentSheet(
+            context,
+            api: api,
+            payload: payData,
+            title: 'Pay for $headline',
+          );
+          if (mounted) {
+            _toast(verified ? 'Campaign paid & submitted!' : 'Campaign saved! You can complete payment anytime.');
+          }
+        } else {
+          _toast('Campaign created! Tap Complete Payment on your campaign card.');
+        }
+        if (mounted) Navigator.of(context).pop(true);
       }
     } catch (e) {
       _toast(parseApiError(e));

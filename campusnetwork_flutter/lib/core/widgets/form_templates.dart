@@ -205,16 +205,59 @@ class SageInputField extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: fill,
-        borderRadius: BorderRadius.circular(14),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [const Color(0xFF1F2D27), fill]
+              : [const Color(0xFFF3F8F5), fill],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.95),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black.withValues(alpha: 0.35) : const Color(0xFF1B4D3E).withValues(alpha: 0.09),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+          BoxShadow(
+            color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.white.withValues(alpha: 0.85),
+            blurRadius: 4,
+            offset: const Offset(-2, -2),
+          ),
+        ],
       ),
-      padding: EdgeInsets.symmetric(horizontal: 14, vertical: maxLines > 1 ? 6 : 2),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: maxLines > 1 ? 6 : 4),
       child: Row(
         crossAxisAlignment: maxLines > 1 ? CrossAxisAlignment.start : CrossAxisAlignment.center,
         children: [
           Padding(
-            padding: EdgeInsets.only(top: maxLines > 1 ? 10 : 0, right: 10),
-            child: Icon(icon, size: 19, color: iconColor),
+            padding: EdgeInsets.only(top: maxLines > 1 ? 6 : 0, right: 10),
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: isDark
+                      ? [const Color(0xFF2D6E4E), const Color(0xFF163D2B)]
+                      : [const Color(0xFF347D59), const Color(0xFF1B4D3E)],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: iconColor.withValues(alpha: 0.32),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Icon(icon, size: 17, color: Colors.white),
+            ),
           ),
           Expanded(
             child: TextField(
