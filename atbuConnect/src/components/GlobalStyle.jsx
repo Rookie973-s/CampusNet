@@ -20,6 +20,7 @@ const GlobalStyle = () => (
        Shadows are blue-tinted so light mode never looks dirty-grey and dark mode
        never collapses into a black blob. */
     .light {
+      color-scheme: light;
       --bg: #EFF3F9;
       --surf: #FFFFFF;
       --surfH: #F1F5FA;
@@ -44,6 +45,7 @@ const GlobalStyle = () => (
     }
 
     .dark {
+      color-scheme: dark;
       --bg: #0A0D12;
       --surf: #151B24;
       --surfH: #1D2532;
@@ -145,7 +147,19 @@ const GlobalStyle = () => (
     .dark .field-err{color:#F87171}
     .inp:focus,input:focus,textarea:focus,select.inp:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(37,99,235,.20),var(--sh-2);outline:none}
     .inp::placeholder,input::placeholder,textarea::placeholder{color:var(--faint)}
-    select.inp{appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
+    select.inp{appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2.2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:38px}
+    select,select.inp{color-scheme:inherit}
+    select option,select.inp option{background-color:var(--surf);color:var(--txt)}
+    .dark select,.dark select.inp{color-scheme:dark}
+    .dark select option,.dark select.inp option{background-color:#151B24;color:#EDF2F7}
+    .light select,.light select.inp{color-scheme:light}
+    .light select option,.light select.inp option{background-color:#FFFFFF;color:#0F172A}
+
+    /* Fix 3-dot dropdown menu stacking context so it always floats above subsequent post cards */
+    .fcard{position:relative;z-index:1}
+    .fcard--menu-open{z-index:80 !important;position:relative !important}
+    .fcard-menu{z-index:120 !important}
+    .fcard-body--lead{font-size:16px !important;font-weight:600;color:var(--txt) !important;line-height:1.5;cursor:pointer}
 
     /* ── TAGS ── */
     .tag{padding:5px 12px;border-radius:999px;background:var(--clay-grad);border:1px solid var(--brd);color:var(--mut);font-size:12px;font-weight:700;cursor:pointer;transition:all .16s;display:inline-block;box-shadow:var(--sh-1)}

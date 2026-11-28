@@ -105,7 +105,9 @@ class _AdsDashboardScreenState extends ConsumerState<AdsDashboardScreen> {
         title: 'Pay for $label',
       );
       if (verified && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment confirmed!')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Payment confirmed! Your ad campaign is now live automatically.')),
+        );
       }
       _load();
     } catch (e) {

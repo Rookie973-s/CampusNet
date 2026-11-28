@@ -45,8 +45,6 @@ class _StudentVerificationScreenState extends ConsumerState<StudentVerificationS
   bool _consent = false;
 
   String? _paymentRef;
-  bool _paid = false;
-  bool _paymentRequired = true;
   bool _busy = false;
 
   @override
@@ -80,8 +78,6 @@ class _StudentVerificationScreenState extends ConsumerState<StudentVerificationS
       setState(() {
         _status = st;
         _faculties = facs;
-        _paid = st['has_paid_verification'] == true;
-        _paymentRequired = st['payment_required'] != false;
       });
     } catch (_) {
     } finally {
@@ -115,8 +111,9 @@ class _StudentVerificationScreenState extends ConsumerState<StudentVerificationS
       final d = Map<String, dynamic>.from(res.data as Map);
       _paymentRef = d['reference']?.toString();
       if (d['already_paid'] == true || d['status'] == 'paid') {
-        setState(() => _paid = true);
-        _toast('Payment confirmed!');
+        await ref.read(authProvider.notifier).refreshMe();
+        await _load();
+        _toast('Payment confirmed! Your Verified Student badge is now active.');
         return;
       }
       if (!mounted) return;
@@ -143,13 +140,14 @@ class _StudentVerificationScreenState extends ConsumerState<StudentVerificationS
       if (_paymentRef != null && _paymentRef!.isNotEmpty) {
         await ref.read(apiClientProvider).dio.post('/payments/verify/', data: {'reference': _paymentRef});
       }
-      final stRes = await ref.read(apiClientProvider).dio.get('/verification/status/');
-      final st = Map<String, dynamic>.from(stRes.data as Map);
-      setState(() {
-        _status = st;
-        _paid = st['has_paid_verification'] == true;
-      });
-      _toast(_paid ? 'Payment verified! You can now submit.' : 'Payment not confirmed yet. Please finish Paystack checkout.');
+      await ref.read(authProvider.notifier).refreshMe();
+      await _load();
+      final isNowVerified = _status?['is_verified_student'] == true;
+      _toast(
+        isNowVerified
+            ? 'Payment confirmed! Your Verified Student badge is now active!'
+            : 'Payment not confirmed yet. Please finish Paystack checkout.',
+      );
     } catch (e) {
       _toast(parseApiError(e));
     } finally {
@@ -160,10 +158,6 @@ class _StudentVerificationScreenState extends ConsumerState<StudentVerificationS
   Future<void> _submitApplication() async {
     if (!_consent) {
       _toast('Please agree to the privacy & verification consent first.');
-      return;
-    }
-    if (_paymentRequired && !_paid) {
-      _toast('Please complete the ₦1,500 verification payment before submitting.');
       return;
     }
     setState(() => _busy = true);
@@ -185,7 +179,7 @@ class _StudentVerificationScreenState extends ConsumerState<StudentVerificationS
       await ref.read(authProvider.notifier).refreshMe();
       await _load();
       setState(() => _started = false);
-      _toast('Student Verification application submitted!');
+      _toast('Documents submitted! We will notify you in-app & by email once approved so you can pay ₦1,500.');
     } catch (e) {
       _toast(parseApiError(e));
     } finally {
@@ -210,23 +204,24 @@ class _StudentVerificationScreenState extends ConsumerState<StudentVerificationS
     final statusStr = (st['status'] ?? 'not_applied').toString();
     final isVerified = st['is_verified_student'] == true;
     final isPending = statusStr == 'pending';
+    final isAwaitingPayment = statusStr == 'awaiting_payment';
 
-    if (!_started && (isVerified || isPending || statusStr == 'rejected' || statusStr == 'info_required')) {
-      return _buildStatusView(cn, st, statusStr, isVerified, isPending);
+    if (!_started && (isVerified || isPending || isAwaitingPayment || statusStr == 'rejected' || statusStr == 'info_required')) {
+      return _buildStatusView(cn, st, statusStr, isVerified, isPending, isAwaitingPayment);
     }
 
-    // 1. Summary Screen (Image 3 style)
+    // 1. Summary Screen (Approve-first, pay-after!)
     if (!_started) {
       return FlowSummaryScreen(
-        badgeText: '₦1,500 · 3 MONTHS',
+        badgeText: 'APPROVE FIRST · ₦1,500 / 3 MOS',
         headline: 'Student\nVerification',
         summary:
-            'Unlock the green Verified Student badge on CampusNetwork and prove your authentic ATBU student identity.',
+            'Submit your student documents first — no upfront payment. Once approved, we notify you in-app & by email to complete the ₦1,500 Paystack fee and activate your badge.',
         highlights: const [
           (Icons.verified_rounded, 'Official green Verified Student badge across Feeds & Comments'),
           (Icons.photo_library_outlined, 'Upload up to 6 photos, short videos & 1,200-word posts'),
           (Icons.lock_outline_rounded, 'Private ID & face liveness review compliant with NDPA'),
-          (Icons.payment_rounded, 'Secure ₦1,500 Paystack verification valid for 3 months'),
+          (Icons.payment_rounded, 'Pay ₦1,500 only AFTER your documents are approved'),
         ],
         ctaLabel: 'Start Verification',
         ctaIcon: Icons.verified_rounded,
@@ -234,7 +229,7 @@ class _StudentVerificationScreenState extends ConsumerState<StudentVerificationS
       );
     }
 
-    // 2. 8-Step Structured Wizard (Image 2 style)
+    // 2. 7-Step Structured Wizard (Documents & Consent -> Submit First!)
     final stepTitles = [
       'Your Faculty',
       'Your Department',
@@ -242,8 +237,7 @@ class _StudentVerificationScreenState extends ConsumerState<StudentVerificationS
       'Student ID Proof',
       'Live Face Scan',
       'Reviewer Note',
-      'Privacy Consent',
-      'Payment & Submit',
+      'Consent & Submit',
     ];
     final stepSubtitles = [
       'Choose your official academic faculty.',
@@ -252,8 +246,7 @@ class _StudentVerificationScreenState extends ConsumerState<StudentVerificationS
       'Upload your Student ID card or Admission Letter (JPG, PNG, WebP or PDF).',
       'Complete a quick live camera blink/nod verification.',
       'Add an optional note for the admin reviewer.',
-      'Review and accept our NDPA privacy consent.',
-      'Complete ₦1,500 Paystack verification and submit.',
+      'Accept our NDPA privacy consent and submit your documents for review (no upfront payment).',
     ];
 
     final facOptions = _faculties.isNotEmpty
@@ -266,15 +259,13 @@ class _StudentVerificationScreenState extends ConsumerState<StudentVerificationS
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
 
-    final primaryLabel = _step < 7
-        ? 'Continue'
-        : (_paymentRequired && !_paid ? 'Pay ₦1,500 with Paystack' : 'Submit Verification');
+    final primaryLabel = _step < 6 ? 'Continue' : 'Submit Documents for Review';
 
     return StepsFormScaffold(
       stepTitle: stepTitles[_step],
       subtitle: stepSubtitles[_step],
       currentStep: _step,
-      totalSteps: 8,
+      totalSteps: 7,
       primaryLabel: primaryLabel,
       primaryBusy: _busy,
       onBack: () => setState(() {
@@ -297,10 +288,8 @@ class _StudentVerificationScreenState extends ConsumerState<StudentVerificationS
           _toast('Please check the consent box to continue.');
           return;
         }
-        if (_step < 7) {
+        if (_step < 6) {
           setState(() => _step++);
-        } else if (_paymentRequired && !_paid) {
-          _initiatePayment();
         } else {
           _submitApplication();
         }
@@ -432,77 +421,69 @@ class _StudentVerificationScreenState extends ConsumerState<StudentVerificationS
       );
     }
 
-    if (_step == 6) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
-        ),
-        child: CheckboxListTile(
-          contentPadding: EdgeInsets.zero,
-          activeColor: const Color(0xFF0E4D45),
-          value: _consent,
-          onChanged: (v) => setState(() => _consent = v ?? false),
-          title: Text(
-            'I confirm all submitted documents belong to me and consent to CampusNetwork verifying my student status in accordance with NDPA privacy standards.',
-            style: TextStyle(color: cn.textPrimary, fontSize: 13.5, height: 1.45),
-          ),
-        ),
-      );
-    }
-
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: cardBg,
             borderRadius: BorderRadius.circular(14),
             boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
           ),
+          child: CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            activeColor: const Color(0xFF0E4D45),
+            value: _consent,
+            onChanged: (v) => setState(() => _consent = v ?? false),
+            title: Text(
+              'I confirm all submitted documents belong to me and consent to CampusNetwork verifying my student status in accordance with NDPA privacy standards.',
+              style: TextStyle(color: cn.textPrimary, fontSize: 13.5, height: 1.45),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        MorphismCard(
+          padding: const EdgeInsets.all(14),
           child: Row(
             children: [
-              Icon(Icons.verified_rounded, color: cn.success, size: 32),
-              const SizedBox(width: 12),
+              Icon(Icons.info_outline_rounded, color: cn.accent, size: 22),
+              const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('₦1,500 / 3 Months', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16.5, color: cn.textPrimary)),
-                    Text(
-                      _paid ? 'Payment Confirmed ✓ Ready to submit' : 'Pay securely via Paystack before submitting',
-                      style: TextStyle(color: _paid ? cn.success : cn.textMuted, fontSize: 12.5, fontWeight: FontWeight.w700),
-                    ),
-                  ],
+                child: Text(
+                  'No upfront payment required. Once an administrator approves your documents, you will be notified in-app and via email to pay ₦1,500.',
+                  style: TextStyle(color: cn.textMuted, fontSize: 12.5, height: 1.4),
                 ),
               ),
             ],
           ),
         ),
-        if (_paymentRequired && !_paid) ...[
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: _busy ? null : _verifyPayment,
-              child: const Text('I Have Paid — Verify Payment'),
-            ),
-          ),
-        ],
       ],
     );
   }
 
-  Widget _buildStatusView(CampusColors cn, Map<String, dynamic> st, String statusStr, bool isVerified, bool isPending) {
+  Widget _buildStatusView(
+    CampusColors cn,
+    Map<String, dynamic> st,
+    String statusStr,
+    bool isVerified,
+    bool isPending,
+    bool isAwaitingPayment,
+  ) {
     final app = st['application'] is Map ? Map<String, dynamic>.from(st['application'] as Map) : null;
     final note = (app?['review_note'] ?? '').toString();
-    final color = isVerified ? cn.success : (isPending ? cn.warning : cn.danger);
-    final icon = isVerified ? Icons.verified_rounded : (isPending ? Icons.hourglass_top_rounded : Icons.info_outline_rounded);
+    final color = isVerified
+        ? cn.success
+        : (isAwaitingPayment ? cn.accent : (isPending ? cn.warning : cn.danger));
+    final icon = isVerified
+        ? Icons.verified_rounded
+        : (isAwaitingPayment
+            ? Icons.payment_rounded
+            : (isPending ? Icons.hourglass_top_rounded : Icons.info_outline_rounded));
     final title = isVerified
         ? 'You Are Verified!'
-        : (isPending ? 'Application Under Review' : 'Action Required (${statusStr.toUpperCase()})');
+        : (isAwaitingPayment
+            ? 'Documents Approved! Complete Payment'
+            : (isPending ? 'Application Under Review' : 'Action Required (${statusStr.toUpperCase()})'));
 
     return Scaffold(
       backgroundColor: cn.bg,
@@ -519,16 +500,36 @@ class _StudentVerificationScreenState extends ConsumerState<StudentVerificationS
               children: [
                 Icon(icon, size: 58, color: color),
                 const SizedBox(height: 12),
-                Text(title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: cn.textPrimary)),
+                Text(title, textAlign: TextAlign.center, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: cn.textPrimary)),
                 const SizedBox(height: 6),
                 if (st['verification_expires_at'] != null && isVerified)
                   Text(
                     'Active until ${st['verification_expires_at'].toString().substring(0, 10)}',
                     style: TextStyle(color: cn.textMuted, fontSize: 13.5),
                   ),
+                if (isAwaitingPayment) ...[
+                  Text(
+                    'Great news! Your submitted student documents have been approved. Pay the ₦1,500 verification fee via Paystack to activate your green Verified Student badge immediately for 90 days.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: cn.textMuted, fontSize: 13.5, height: 1.45),
+                  ),
+                  const SizedBox(height: 18),
+                  StepPrimaryButton(
+                    label: _busy ? 'Opening Paystack...' : 'Pay ₦1,500 with Paystack',
+                    onTap: _busy ? null : _initiatePayment,
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: _busy ? null : _verifyPayment,
+                      child: const Text('I Have Paid — Verify Payment'),
+                    ),
+                  ),
+                ],
                 if (isPending)
                   Text(
-                    'An administrator is reviewing your student ID and liveness scan. You will receive a notification once approved.',
+                    'An administrator is reviewing your student ID and liveness scan. Once approved, we will send you an in-app notification & email with a button to complete the ₦1,500 payment.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: cn.textMuted, fontSize: 13.5, height: 1.45),
                   ),
@@ -541,7 +542,7 @@ class _StudentVerificationScreenState extends ConsumerState<StudentVerificationS
                     child: Text('Reviewer Note: $note', style: TextStyle(color: cn.textPrimary, fontSize: 13)),
                   ),
                 ],
-                if (!isVerified && !isPending) ...[
+                if (!isVerified && !isPending && !isAwaitingPayment) ...[
                   const SizedBox(height: 16),
                   StepPrimaryButton(
                     label: 'Apply / Resubmit',

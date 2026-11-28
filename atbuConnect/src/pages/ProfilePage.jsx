@@ -216,12 +216,13 @@ function ProfilePage({ user, toast, onUserUpdate, onLogin, onLogout }) {
 
   const handleApplyVerification = async (e) => {
     e.preventDefault();
-    if (!verForm.matricNumber.trim()) { toast("Enter your ATBU matric number (e.g. 21/62525/U).", "error"); return; }
+    if (!verForm.faculty) { toast("Please select your Academic Faculty.", "error"); return; }
+    if (!verForm.departmentName.trim()) { toast("Please select or enter your Department.", "error"); return; }
     if (!verForm.consent) { toast("Please agree to the verification consent.", "error"); return; }
     setVerBusy(true);
     try {
       await applyStudentVerification(verForm);
-      toast("Student verification application submitted!", "success");
+      toast("Application submitted! We will review your documents and notify you with the payment link.", "success");
       const fresh = await getVerificationStatus();
       setVerStatus(fresh);
     } catch (err) { toast(err.message || "Could not submit application.", "error"); }
@@ -517,15 +518,83 @@ function ProfilePage({ user, toast, onUserUpdate, onLogin, onLogout }) {
                         Hide In-Feed &amp; Comment Ads
                       </label>
                     </div>
+                  ) : verStatus?.status === "awaiting_payment" ? (
+                    <div style={{ padding: 18, borderRadius: 16, background: "rgba(37,99,235,.10)", border: "1.5px solid rgba(37,99,235,.32)", display: "flex", flexDirection: "column", gap: 12 }}>
+                      <div>
+                        <strong style={{ fontSize: 15.5, color: "var(--accent)", display: "block", marginBottom: 4 }}>
+                          Documents Approved! Complete ₦1,500 Payment to Activate Badge
+                        </strong>
+                        <p style={{ fontSize: 13.5, color: "var(--mut)", lineHeight: 1.55 }}>
+                          Your submitted student verification details have been verified by an administrator. Pay the ₦1,500 fee via Paystack to activate your Verified Student badge immediately for 90 days.
+                        </p>
+                      </div>
+                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                        <button
+                          type="button"
+                          className="btn btn-pri"
+                          disabled={verPayBusy}
+                          onClick={async () => {
+                            setVerPayBusy(true);
+                            try {
+                              const res = await initiateVerificationPayment();
+                              setVerPay(res);
+                              toast(res.message, res.enabled ? "success" : "info");
+                            } catch (err) {
+                              toast(err.message || "Could not start Paystack payment.", "error");
+                            } finally { setVerPayBusy(false); }
+                          }}
+                        >
+                          {verPayBusy ? "Opening Paystack…" : "Pay ₦1,500 with Paystack"}
+                        </button>
+                      </div>
+                      {verPay && (
+                        <div style={{ padding: 14, borderRadius: 14, background: "var(--surf)", border: "1px solid var(--brdS)", fontSize: 13, display: "flex", flexDirection: "column", gap: 8 }}>
+                          <p style={{ color: "var(--mut)" }}>{verPay.message}</p>
+                          {verPay.account_number && (
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, padding: "6px 0" }}>
+                              <div><span style={{ color: "var(--faint)", fontSize: 11 }}>BANK</span><strong style={{ display: "block" }}>{verPay.bank_name}</strong></div>
+                              <div><span style={{ color: "var(--faint)", fontSize: 11 }}>ACCOUNT NUMBER</span><strong style={{ display: "block", fontSize: 16 }}>{verPay.account_number}</strong></div>
+                              <div><span style={{ color: "var(--faint)", fontSize: 11 }}>ACCOUNT NAME</span><strong style={{ display: "block" }}>{verPay.account_name}</strong></div>
+                            </div>
+                          )}
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            {verPay.checkout_url && (
+                              <a href={verPay.checkout_url} target="_blank" rel="noopener noreferrer" className="btn btn-navy" style={{ height: 38, minHeight: 38, padding: "0 16px", fontSize: 13 }}>
+                                Open Paystack Checkout
+                              </a>
+                            )}
+                            {verPay.reference && (
+                              <button
+                                type="button"
+                                className="btn btn-out"
+                                style={{ height: 38, minHeight: 38, padding: "0 16px", fontSize: 13 }}
+                                onClick={async () => {
+                                  try {
+                                    const v = await verifyPaystackPayment(verPay.reference);
+                                    toast(v.verified ? "Payment confirmed! Your Verified Student badge is now active!" : (v.detail || "Payment not confirmed yet — try again in a few seconds."), v.verified ? "success" : "info");
+                                    if (v.verified) {
+                                      getVerificationStatus().then(setVerStatus).catch(() => {});
+                                      onUserUpdate && onUserUpdate({ ...user, isVerifiedStudent: true });
+                                    }
+                                  } catch (err) { toast(err.message || "Could not verify payment.", "error"); }
+                                }}
+                              >
+                                I&apos;ve Paid — Verify Now
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   ) : verStatus?.status === "pending" ? (
                     <div style={{ padding: 16, borderRadius: 16, background: "rgba(245,158,11,.12)", fontSize: 14 }}>
-                      <strong>Application Pending Review:</strong> Your verification request for matric number <strong>{verStatus.application?.matric_number}</strong> is being reviewed by an administrator. If a verification fee applies, a payment link will be emailed to you upon confirmation (administrators may also verify eligible students directly).
+                      <strong>Application Pending Review:</strong> Your verification details are being reviewed by an administrator. Once your documents are approved, you will receive an in-app notification and email with a button to complete the ₦1,500 payment.
                     </div>
                   ) : (
                     <form onSubmit={handleApplyVerification} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                       {verStatus?.is_expired && (
                         <div className="auth-alert" style={{ background: "rgba(245,158,11,.14)", color: "#D97706", borderColor: "rgba(245,158,11,.35)" }}>
-                          Your 3-month student verification has expired. Pay ₦1,500 and complete a quick camera liveness scan to renew (your previous ID document is still on file).
+                          Your 3-month student verification has expired. Submit a quick renewal with a camera liveness scan; once approved, you will receive a notification &amp; email link to pay ₦1,500.
                         </div>
                       )}
                       {verStatus?.application?.review_note && (
@@ -535,10 +604,8 @@ function ProfilePage({ user, toast, onUserUpdate, onLogin, onLogout }) {
                         const isRenewal = !!(verStatus?.is_expired && verStatus?.has_existing_document);
                         const selectedFac = depts.find((d) => String(d.id) === String(verForm.faculty));
                         const subDepts = selectedFac?.sub_departments || [];
-                        const paidOk = !!(verStatus?.has_paid_verification || !verStatus?.payment_required || user.role === "admin");
                         const docOk = isRenewal || !!verForm.document;
-                        const canPay = verForm.consent && !verPayBusy;
-                        const canSubmit = verForm.consent && paidOk && docOk && !!verForm.livenessVideo && !verBusy;
+                        const canSubmit = verForm.consent && docOk && !!verForm.livenessVideo && !verBusy;
                         return (
                           <>
                             <div className="sug-2">
@@ -576,7 +643,7 @@ function ProfilePage({ user, toast, onUserUpdate, onLogin, onLogout }) {
                               </div>
                             ) : (
                               <div style={{ padding: "10px 14px", borderRadius: 12, background: "rgba(16,185,129,.12)", border: "1px solid rgba(16,185,129,.3)", fontSize: 13, color: "#059669" }}>
-                                Your previously verified ID document is still valid on file — only payment + quick camera liveness scan is required to renew for another 3 months.
+                                Your previously verified ID document is still valid on file — only a quick camera liveness scan is required to request renewal.
                               </div>
                             )}
 
@@ -596,78 +663,13 @@ function ProfilePage({ user, toast, onUserUpdate, onLogin, onLogout }) {
                               <span>I confirm my student details are accurate and consent to CampusNetwork reviewing my verification application, ID document, and camera scan under its Privacy Policy.</span>
                             </label>
 
-                            <div style={{ padding: 14, borderRadius: 14, background: "var(--surfH)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 10 }}>
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                <div>
-                                  <strong style={{ fontSize: 14 }}>
-                                    Verification Fee: ₦1,500 / 3 Months {verStatus?.has_paid_verification ? "· Paid ✓" : "(Paystack Bank Transfer)"}
-                                  </strong>
-                                  <p style={{ fontSize: 12.5, color: "var(--mut)" }}>
-                                    {verStatus?.has_paid_verification
-                                      ? "Your ₦1,500 payment is confirmed! You can now submit your verification."
-                                      : "Check the agreement box above first, then pay ₦1,500 via Paystack Bank Transfer to unlock the Apply button."}
-                                  </p>
-                                </div>
-                                {!verStatus?.has_paid_verification && (
-                                  <button
-                                    type="button"
-                                    className="btn btn-pri"
-                                    style={{ height: 38, minHeight: 38, padding: "0 16px", fontSize: 13 }}
-                                    disabled={!canPay}
-                                    onClick={async () => {
-                                      setVerPayBusy(true);
-                                      try {
-                                        const res = await initiateVerificationPayment();
-                                        setVerPay(res);
-                                        toast(res.message, res.enabled ? "success" : "info");
-                                      } catch (err) {
-                                        toast(err.message || "Could not start Paystack payment.", "error");
-                                      } finally { setVerPayBusy(false); }
-                                    }}
-                                  >
-                                    {verPayBusy ? "Generating account…" : "Pay ₦1,500 with Paystack"}
-                                  </button>
-                                )}
-                              </div>
-                              {verPay && !verStatus?.has_paid_verification && (
-                                <div style={{ padding: 12, borderRadius: 12, background: "var(--surf)", border: "1px solid var(--brdS)", fontSize: 13, display: "flex", flexDirection: "column", gap: 6 }}>
-                                  <p style={{ color: "var(--mut)" }}>{verPay.message}</p>
-                                  {verPay.account_number && (
-                                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, padding: "8px 0" }}>
-                                      <div><span style={{ color: "var(--faint)", fontSize: 11 }}>BANK</span><strong style={{ display: "block" }}>{verPay.bank_name}</strong></div>
-                                      <div><span style={{ color: "var(--faint)", fontSize: 11 }}>ACCOUNT NUMBER</span><strong style={{ display: "block", fontSize: 16 }}>{verPay.account_number}</strong></div>
-                                      <div><span style={{ color: "var(--faint)", fontSize: 11 }}>ACCOUNT NAME</span><strong style={{ display: "block" }}>{verPay.account_name}</strong></div>
-                                    </div>
-                                  )}
-                                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                    {verPay.checkout_url && (
-                                      <a href={verPay.checkout_url} target="_blank" rel="noopener noreferrer" className="btn btn-navy" style={{ height: 36, minHeight: 36, padding: "0 14px", fontSize: 12.5 }}>
-                                        Open Paystack Checkout
-                                      </a>
-                                    )}
-                                    {verPay.reference && (
-                                      <button
-                                        type="button"
-                                        className="btn btn-out"
-                                        style={{ height: 36, minHeight: 36, padding: "0 14px", fontSize: 12.5 }}
-                                        onClick={async () => {
-                                          try {
-                                            const v = await verifyPaystackPayment(verPay.reference);
-                                            toast(v.verified ? "Payment confirmed!" : (v.detail || "Transfer not confirmed yet — try again in a few seconds."), v.verified ? "success" : "info");
-                                            if (v.verified) getVerificationStatus().then(setVerStatus).catch(() => {});
-                                          } catch (err) { toast(err.message || "Could not verify payment.", "error"); }
-                                        }}
-                                      >
-                                        I&apos;ve Sent the Transfer — Verify
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
+                            <div style={{ padding: 13, borderRadius: 14, background: "var(--surfH)", border: "1px solid var(--brd)", fontSize: 13, color: "var(--mut)", lineHeight: 1.55 }}>
+                              <strong style={{ color: "var(--txt)", display: "block", marginBottom: 3 }}>No upfront payment needed</strong>
+                              Submit your documents first. After our team approves your student details, we will notify you in-app and by email with a button to complete the ₦1,500 fee (valid for 3 months).
                             </div>
 
                             <button type="submit" className="btn btn-navy" style={{ alignSelf: "flex-start" }} disabled={!canSubmit}>
-                              {verBusy ? "Submitting…" : isRenewal ? "Renew Student Verification" : "Apply for Student Verification"}
+                              {verBusy ? "Submitting…" : isRenewal ? "Submit Renewal Request" : "Submit Documents for Review"}
                             </button>
                           </>
                         );

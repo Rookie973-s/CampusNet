@@ -53,6 +53,10 @@ export async function rejectCampaign(id, note) {
   return api.post(`/ads/${id}/reject/`, { note }, { auth: "required" });
 }
 
+export async function takedownCampaign(id, reason) {
+  return api.post(`/ads/${id}/takedown/`, { reason }, { auth: "required" });
+}
+
 export async function initiateAdPayment(id) {
   return api.post(`/ads/${id}/initiate-payment/`, {}, { auth: "required" });
 }

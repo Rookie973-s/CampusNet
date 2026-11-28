@@ -15,6 +15,7 @@ import '../models/models.dart';
 import '../motion/liquid_motion.dart';
 import '../network/api_client.dart';
 import '../theme/app_theme.dart';
+import '../theme/clay_system.dart';
 import '../widgets/morphism_widgets.dart';
 import 'scroll_chrome.dart';
 
@@ -408,25 +409,23 @@ class _AppShellState extends ConsumerState<AppShell> with SingleTickerProviderSt
                         ),
                       ),
 
-                      // Central Floating Action Button nestled inside the concave notch
+                      // Central Claymorphic Floating Action Button nestled inside the concave notch
                       Positioned(
                         bottom: 30,
                         child: LiquidTap(
                           onTap: () => _toggleFab(),
                           child: Container(
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
+                            width: 58,
+                            height: 58,
+                            decoration: ClayDecorations.button(
+                              context,
                               color: c.accent,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(color: c.accent.withValues(alpha: 0.45), blurRadius: 16, offset: const Offset(0, 5)),
-                              ],
+                              radius: 999,
                             ),
                             child: AnimatedBuilder(
                               animation: _fabCtrl,
                               builder: (_, child) => Transform.rotate(angle: _fabCtrl.value * 0.785398, child: child),
-                              child: const Icon(Icons.add_rounded, size: 28, color: Colors.white),
+                              child: const Icon(Icons.add_rounded, size: 29, color: Colors.white),
                             ),
                           ),
                         ),
@@ -568,13 +567,12 @@ class _FabActionPill extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
+                width: 56,
+                height: 56,
+                decoration: ClayDecorations.button(
+                  context,
                   color: color,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white30, width: 1.5),
-                  boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 12, offset: Offset(0, 4))],
+                  radius: 999,
                 ),
                 child: Icon(icon, color: Colors.white, size: 23),
               ),
@@ -800,7 +798,12 @@ class _HamburgerDrawerState extends ConsumerState<_HamburgerDrawer> {
                                   children: [
                                     Text((_trending[i]['title'] ?? '').toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: c.textPrimary)),
                                     const SizedBox(height: 2),
-                                    Text('${_trending[i]['dept'] ?? 'General'} · ${_trending[i]['answers'] ?? 0} answers · Explore topic →', style: TextStyle(color: c.textSecondary, fontSize: 12)),
+                                    Text(
+                                      _trending[i]['engagements'] != null
+                                          ? '${_trending[i]['engagements']} engagements · ${_trending[i]['post_count'] ?? 1} post${(_trending[i]['post_count'] ?? 1) == 1 ? '' : 's'} · ${_trending[i]['dept'] ?? 'Campus'}'
+                                          : '${_trending[i]['dept'] ?? 'General'} · ${_trending[i]['answers'] ?? 0} answers · Explore topic →',
+                                      style: TextStyle(color: c.textSecondary, fontSize: 12),
+                                    ),
                                   ],
                                 ),
                               ),

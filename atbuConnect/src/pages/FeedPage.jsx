@@ -12,6 +12,7 @@ import CategoryPicker from '../components/CategoryPicker';
 import {
   listQuestionsPage, listTrendingTopics, voteQuestion, likeQuestion, bookmarkQuestion, deleteQuestion,
 } from '../api/questions';
+import { api } from '../api/client';
 import { listDepartments } from '../api/departments';
 import { serveAds } from '../api/ads';
 
@@ -177,10 +178,24 @@ function FeedPage({ user, onLogin, toast, onViewQ }) {
 
   const guard = (action) => { if (!user) { onLogin(t(action)); return false; } return true; };
 
-  const handleLike = (id) => {
+  const handleLike = (itemOrId) => {
     if (!guard("guest.actions.like")) return;
-    setQs((p) => p.map((q) => (q.id === id ? { ...q, liked: !q.liked, likes: q.liked ? q.likes - 1 : q.likes + 1 } : q)));
-    likeQuestion(id).catch(() => { toast(t("feed.err.like"), "error"); loadFeed(1); });
+    const isObj = itemOrId && typeof itemOrId === "object";
+    const key = isObj ? (itemOrId.feedKey || `q-${itemOrId.id}`) : `q-${itemOrId}`;
+    const isComm = isObj && !!itemOrId.isCommunityPost;
+    setQs((p) => p.map((q) => ((q.feedKey || `q-${q.id}`) === key ? { ...q, liked: !q.liked, likes: q.liked ? q.likes - 1 : q.likes + 1 } : q)));
+    const reqLike = isComm
+      ? api.post(`/community-posts/${itemOrId.communityPostId || itemOrId.id}/like/`, {}, { auth: "required" })
+      : likeQuestion(isObj ? itemOrId.id : itemOrId);
+    reqLike.catch(() => { toast(t("feed.err.like"), "error"); loadFeed(1); });
+  };
+
+  const handleOpenPost = (q) => {
+    if (q?.isCommunityPost && q.communitySlug) {
+      navigate(`/communities/${q.communitySlug}`);
+      return;
+    }
+    onViewQ && onViewQ(q);
   };
 
   const handleVote = (id, dir) => {
@@ -296,11 +311,12 @@ function FeedPage({ user, onLogin, toast, onViewQ }) {
         )}
 
         {!loading && qs.map((q, i) => (
-          <div key={q.id}>
+          <div key={q.feedKey || q.id}>
             <QuestionCard
-              q={q} index={i} expanded={!!expanded[q.id]} toast={toast}
+              q={q} index={i} expanded={!!expanded[q.feedKey || q.id]} toast={toast}
               onToggle={toggleExpand} onVote={handleVote} onLike={handleLike} onSave={handleBookmark}
-              onOpen={onViewQ} onTag={setTopicF} onAuthor={openAuthor} onMention={openMention}
+              onOpen={handleOpenPost} onOpenCommunity={(slug) => navigate(`/communities/${slug}`)}
+              onTag={setTopicF} onAuthor={openAuthor} onMention={openMention}
               onEdit={setEditing} onDelete={setToDelete}
             />
             {!user?.hideAds && feedAds.length > 0 && (i + 1) % 4 === 0 && (
@@ -334,7 +350,11 @@ function FeedPage({ user, onLogin, toast, onViewQ }) {
                 <span style={{ fontSize: 20, fontWeight: 800, lineHeight: 1, flexShrink: 0, color: "var(--accent)" }}>{item.n}</span>
                 <span>
                   <span style={{ display: "block", fontSize: 13, fontWeight: 600, lineHeight: 1.4, marginBottom: 4 }}>{item.title}</span>
-                  <span style={{ fontSize: 11, color: "var(--mut)" }}>{item.dept} · {item.answers} answers · Explore topic</span>
+                  <span style={{ fontSize: 11, color: "var(--mut)" }}>
+                    {item.engagements != null
+                      ? `${item.engagements} engagement${item.engagements === 1 ? "" : "s"} · ${item.post_count || 1} post${(item.post_count || 1) === 1 ? "" : "s"} · ${item.dept}`
+                      : `${item.dept} · ${item.answers} answers · Explore topic`}
+                  </span>
                 </span>
               </button>
             ))}

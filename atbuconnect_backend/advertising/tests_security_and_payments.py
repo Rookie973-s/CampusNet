@@ -62,7 +62,7 @@ class SecurityAndPaymentsTests(TestCase):
             payment_status=Campaign.PaymentStatus.UNPAID,
         )
 
-    @override_settings(PAYSTACK_SECRET_KEY="sk_test_dummy_secret")
+    @override_settings(PAYSTACK_SECRET_KEY="sk_live_dummy_secret")
     @patch("advertising.payments.PaystackGateway._request")
     def test_payment_idempotency_and_both_checkout_keys(self, mock_req):
         mock_req.side_effect = [
@@ -305,3 +305,160 @@ class SecurityAndPaymentsTests(TestCase):
         r_ok = self.client.patch(f"/api/questions/{q.public_id}/", {"title": "Updated Title"}, format="json")
         self.assertEqual(r_ok.status_code, 200)
         self.assertEqual(r_ok.json()["title"], "Updated Title")
+
+    @override_settings(PAYSTACK_SECRET_KEY="sk_test_fast_verify_key")
+    def test_verification_approve_first_then_pay_auto_activates(self):
+        from accounts.models import StudentVerificationApplication
+        from notifications.models import Notification
+
+        admin_u = User.objects.create_superuser("veradmin", "veradmin@atbu.edu.ng", "StrongPassword123!")
+        # 1. Student submits documents WITHOUT paying upfront -> succeeds (201)
+        self.client.force_authenticate(self.user)
+        r_apply = self.client.post(
+            "/api/verification/apply/",
+            {"level": "300 Level", "department_name": "Computer Science", "consent": True},
+            format="json",
+        )
+        self.assertEqual(r_apply.status_code, 201)
+        app_id = r_apply.json()["id"]
+        self.assertEqual(r_apply.json()["status"], "pending")
+
+        # 2. Admin approves collected data -> status becomes awaiting_payment + user notified
+        self.client.force_authenticate(admin_u)
+        r_approve = self.client.post(f"/api/verification/applications/{app_id}/approve/", {}, format="json")
+        self.assertEqual(r_approve.status_code, 200)
+        self.assertEqual(r_approve.json()["status"], "awaiting_payment")
+        self.assertTrue(Notification.objects.filter(user=self.user, link="/verification").exists())
+
+        # 3. Paystack webhook confirms ₦1,500 verification payment -> badge activates automatically!
+        tx = PaymentTransaction.objects.create(
+            user=self.user,
+            purpose=PaymentTransaction.Purpose.STUDENT_VERIFICATION,
+            amount_ngn=Decimal("1500.00"),
+            reference="CN-STU-APPROVE1",
+        )
+        payload = json.dumps({
+            "event": "charge.success",
+            "data": {"reference": tx.reference, "amount": 150000, "customer": {"email": self.user.email}},
+        }).encode("utf-8")
+        sig = hmac.new(b"sk_test_fast_verify_key", payload, hashlib.sha512).hexdigest()
+        r_hook = self.client.post(
+            "/api/payments/paystack/webhook/",
+            data=payload,
+            content_type="application/json",
+            HTTP_X_PAYSTACK_SIGNATURE=sig,
+        )
+        self.assertEqual(r_hook.status_code, 200)
+        self.user.refresh_from_db()
+        app = StudentVerificationApplication.objects.get(pk=app_id)
+        self.assertTrue(self.user.is_verified_student)
+        self.assertEqual(app.status, StudentVerificationApplication.Status.APPROVED)
+
+    @override_settings(PAYSTACK_SECRET_KEY="sk_test_ad_live_key")
+    def test_paid_ad_goes_live_immediately_and_admin_takedown_notifies(self):
+        from notifications.models import Notification
+
+        admin_u = User.objects.create_superuser("adadmin", "adadmin@atbu.edu.ng", "StrongPassword123!")
+        tx = PaymentTransaction.objects.create(
+            user=self.user,
+            purpose=PaymentTransaction.Purpose.AD_CAMPAIGN,
+            campaign=self.camp,
+            amount_ngn=Decimal("1500.00"),
+            reference="CN-AD-AUTOLIVE1",
+        )
+        payload = json.dumps({
+            "event": "charge.success",
+            "data": {"reference": tx.reference, "amount": 150000, "customer": {"email": self.user.email}},
+        }).encode("utf-8")
+        sig = hmac.new(b"sk_test_ad_live_key", payload, hashlib.sha512).hexdigest()
+        r_hook = self.client.post(
+            "/api/payments/paystack/webhook/",
+            data=payload,
+            content_type="application/json",
+            HTTP_X_PAYSTACK_SIGNATURE=sig,
+        )
+        self.assertEqual(r_hook.status_code, 200)
+        self.camp.refresh_from_db()
+        # Live immediately on payment — no pre-approval wait!
+        self.assertEqual(self.camp.status, Campaign.Status.ACTIVE)
+
+        # Admin can still take down non-compliant ads with reason + notification
+        self.client.force_authenticate(admin_u)
+        r_td = self.client.post(
+            f"/api/ads/{self.camp.pk}/takedown/",
+            {"reason": "Misleading promotional claim"},
+            format="json",
+        )
+        self.assertEqual(r_td.status_code, 200)
+        self.camp.refresh_from_db()
+        self.assertEqual(self.camp.status, Campaign.Status.REJECTED)
+        self.assertTrue(Notification.objects.filter(user=self.user, text__icontains="Misleading").exists())
+
+    def test_admin_post_takedown_and_account_suspension_notify_users(self):
+        from notifications.models import Notification
+        from questions.models import Question
+
+        admin_u = User.objects.create_superuser("modadmin", "modadmin@atbu.edu.ng", "StrongPassword123!")
+        q = Question.objects.create(author=self.user, title="Bad post", body="Spam content")
+        self.client.force_authenticate(admin_u)
+
+        r_td = self.client.post(f"/api/questions/{q.public_id}/takedown/", {"reason": "Spam advertising"}, format="json")
+        self.assertEqual(r_td.status_code, 200)
+        self.assertFalse(Question.objects.filter(pk=q.pk).exists())
+        self.assertTrue(Notification.objects.filter(user=self.user, text__icontains="Spam advertising").exists())
+
+        r_susp = self.client.post(f"/api/users/{self.user.pk}/suspend/", {"reason": "Repeated spam"}, format="json")
+        self.assertEqual(r_susp.status_code, 200)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_active)
+        self.assertTrue(Notification.objects.filter(user=self.user, text__icontains="Repeated spam").exists())
+
+    def test_optional_blank_headline_community_feed_merge_and_universal_search(self):
+        from communities.models import Community, CommunityPost, CommunityPostComment
+        from questions.models import Answer, Question
+
+        # 1. Optional blank headline allowed without auto-copying body into title
+        self.client.force_authenticate(self.user)
+        r_post = self.client.post(
+            "/api/questions/",
+            {"title": "", "body": "Quick campus update about #resumption timetable!"},
+            format="json",
+        )
+        self.assertEqual(r_post.status_code, 201)
+        self.assertEqual(r_post.json()["title"], "")
+        q_id = r_post.json()["id"]
+        Answer.objects.create(question_id=q_id, author=self.other, body="Confirming examhall schedule for resumption")
+
+        # 2. Public community post appears in All Faculties feed with clickable community metadata
+        comm = Community.objects.create(name="ATBU Football Club", description="Matches", creator=self.user)
+        cp = CommunityPost.objects.create(
+            community=comm, author=self.user, title="", body="Big resumption match on Saturday!"
+        )
+        CommunityPostComment.objects.create(post=cp, author=self.other, body="See you at the stadium for examhall vibes")
+
+        r_feed = self.client.get("/api/questions/")
+        self.assertEqual(r_feed.status_code, 200)
+        results = r_feed.json()["results"]
+        self.assertTrue(any(item.get("is_community_post") and item.get("community_slug") == comm.slug for item in results))
+
+        # Excluded when filtering by a specific faculty
+        Department.objects.create(name="Computing", color="#2563EB")
+        r_fac = self.client.get("/api/questions/?topic=Computing")
+        self.assertEqual(r_fac.json()["results"], [])
+
+        # 3. Keyword-engagement-driven Trending Now
+        r_trend = self.client.get("/api/questions/trending-topics/")
+        self.assertEqual(r_trend.status_code, 200)
+        trends = r_trend.json()
+        self.assertTrue(len(trends) >= 1)
+        self.assertIn("keyword", trends[0])
+        self.assertIn("engagements", trends[0])
+
+        # 4. Universal deep keyword search matches comments & community comments
+        r_search = self.client.get("/api/search/?q=examhall")
+        self.assertEqual(r_search.status_code, 200)
+        sd = r_search.json()
+        self.assertTrue(len(sd["posts"]) >= 1)
+        self.assertTrue(len(sd["comments"]) >= 1)
+        self.assertTrue(len(sd["community_posts"]) >= 1)
+        self.assertTrue(len(sd["community_comments"]) >= 1)

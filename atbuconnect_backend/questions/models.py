@@ -31,7 +31,7 @@ class Question(models.Model):
         "departments.Department", on_delete=models.SET_NULL, null=True,
         related_name="questions",
     )
-    title = models.CharField(max_length=300)
+    title = models.CharField(max_length=300, blank=True, default="")
     body = models.TextField()
     body_html = models.TextField(blank=True)
     tags = models.ManyToManyField(Tag, related_name="questions", blank=True)
@@ -51,7 +51,7 @@ class Question(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return self.title
+        return self.title or (self.body[:60] if self.body else f"Post #{self.pk}")
 
     def save(self, *args, **kwargs):
         if not self.public_id:

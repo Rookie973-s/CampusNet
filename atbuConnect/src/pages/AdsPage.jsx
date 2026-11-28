@@ -3,7 +3,7 @@ import Ic from "../components/Ic";
 import { Skel, Modal } from "../components/ui/shared";
 import {
   listCampaigns, createCampaign, pauseCampaign, resumeCampaign,
-  approveCampaign, rejectCampaign, initiateAdPayment, verifyPaystackPayment, getAdAnalytics,
+  approveCampaign, takedownCampaign, initiateAdPayment, verifyPaystackPayment, getAdAnalytics,
 } from "../api/ads";
 import { listDepartments } from "../api/departments";
 import { COMMUNITY_CATEGORIES } from "../api/communities";
@@ -194,7 +194,7 @@ export default function AdsPage({ user, onLogin, toast }) {
         dailyBudget: wiz.dailyBudget || null,
         saveAs,
       });
-      toast(saveAs === "draft" ? "Draft saved!" : "Campaign submitted for admin review!", "success");
+      toast(saveAs === "draft" ? "Draft saved!" : "Campaign created! Complete Paystack payment to go live immediately.", "success");
       setStep(0);
       setTab("tracker");
       loadData();
@@ -562,8 +562,8 @@ export default function AdsPage({ user, onLogin, toast }) {
                 <span className="badge-promo">Paystack Bank Transfer</span>
               </div>
               <div style={{ padding: 14, borderRadius: 12, background: "var(--surfH)", fontSize: 13.5, color: "var(--mut)", lineHeight: 1.6 }}>
-                <strong style={{ color: "var(--txt)", display: "block", marginBottom: 4 }}>Paystack Dedicated Virtual Account &amp; Admin Review</strong>
-                After submitting, click <strong>Pay</strong> on your campaign to receive your dedicated Paystack bank transfer account (or Paystack checkout link). Incoming transfers are automatically verified via Paystack webhook.
+                <strong style={{ color: "var(--txt)", display: "block", marginBottom: 4 }}>Instant Activation After Payment</strong>
+                Click <strong>Pay</strong> on your campaign after creation to complete payment via Paystack. Your ad activates automatically upon payment confirmation — no waiting for approval. Administrators still monitor all ads and may take down any ad that violates CampusNetwork guidelines.
               </div>
             </div>
           )}
@@ -577,12 +577,12 @@ export default function AdsPage({ user, onLogin, toast }) {
                 <div><dt>Placements</dt><dd>{wiz.placements.join(", ")}</dd></div>
                 <div><dt>Schedule</dt><dd>{wiz.startDate} to {wiz.endDate}</dd></div>
                 <div><dt>Total Price</dt><dd>₦{estimatedPrice.toLocaleString()} (NGN)</dd></div>
-                <div><dt>Payment Gateway</dt><dd>Paystack Bank Transfer (DVA) · Admin Review</dd></div>
+                <div><dt>Activation</dt><dd>Instant via Paystack (no pre-approval wait)</dd></div>
               </dl>
               <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
                 <button type="button" className="btn btn-out" onClick={() => handleCreateCampaign("draft")} disabled={submitting}>Save as Draft</button>
                 <button type="button" className="btn btn-navy" onClick={() => handleCreateCampaign("pending")} disabled={submitting}>
-                  {submitting ? "Submitting…" : "Submit for Admin Review"}
+                  {submitting ? "Creating…" : "Create Campaign & Proceed to Pay"}
                 </button>
               </div>
             </div>
@@ -626,11 +626,11 @@ export default function AdsPage({ user, onLogin, toast }) {
                     )}
                     {c.status !== "rejected" && (
                       <button type="button" className="btn btn-out" style={{ height: 36, minHeight: 36, padding: "0 14px", fontSize: 12.5, color: "#DC2626" }} onClick={() => {
-                        const note = window.prompt("Rejection reason:");
-                        if (!note) return;
-                        rejectCampaign(c.id, note).then(() => { toast("Rejected.", "info"); loadData(); }).catch((e) => toast(e.message, "error"));
+                        const reason = window.prompt("Reason for taking down this ad (advertiser will be notified in-app & by email):");
+                        if (!reason || reason.trim().length < 5) return;
+                        takedownCampaign(c.id, reason.trim()).then(() => { toast("Ad taken down and advertiser notified.", "info"); loadData(); }).catch((e) => toast(e.message, "error"));
                       }}>
-                        Reject
+                        Take Down
                       </button>
                     )}
                   </div>

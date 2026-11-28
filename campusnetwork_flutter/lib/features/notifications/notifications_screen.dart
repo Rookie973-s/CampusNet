@@ -101,6 +101,8 @@ class NotificationsScreen extends ConsumerWidget {
                         context.push('/community/$slug');
                       } else if (n.link.startsWith('/communities')) {
                         context.push('/communities');
+                      } else if (n.link.startsWith('/verification') || n.link.contains('tab=verification')) {
+                        context.push('/verification');
                       } else if (n.link.startsWith('/ads')) {
                         context.push('/ads');
                       } else if (n.link.startsWith('/sug')) {

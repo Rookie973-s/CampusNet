@@ -13,7 +13,7 @@ import { getQuestionLikers, hideQuestion, reportQuestion, votePoll } from '../..
 const clip = { display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden" };
 
 export default function QuestionCard({
-  q, index, expanded, onToggle, onVote, onLike, onSave, onOpen, onTag, onAuthor, onMention, onEdit, onDelete, toast,
+  q, index, expanded, onToggle, onVote, onLike, onSave, onOpen, onOpenCommunity, onTag, onAuthor, onMention, onEdit, onDelete, toast,
 }) {
   const { t } = useI18n();
   const authorBtn = useRef(null);
@@ -27,7 +27,10 @@ export default function QuestionCard({
     myOpt: q.myPollOption ?? null,
   });
   const long = q.body.length > 260 || q.body.split("\n").length > 4;
-  const url = `${window.location.origin}/q/${q.publicId || q.id}`;
+  const isComm = !!q.isCommunityPost;
+  const url = isComm
+    ? `${window.location.origin}/communities/${q.communitySlug}`
+    : `${window.location.origin}/q/${q.publicId || q.id}`;
 
   if (hidden) return null;
 
@@ -71,8 +74,39 @@ export default function QuestionCard({
   const deadline = q.deleteDeadline ? new Date(q.deleteDeadline) : null;
   const deadlineText = deadline ? deadline.toLocaleString(undefined, { hour: "numeric", minute: "2-digit", day: "numeric", month: "short" }) : "";
 
+  const hasTitle = Boolean((q.title || "").trim());
+
   return (
-    <article className="fcard fu" style={{ animationDelay: `${Math.min(index, 6) * 0.05}s` }} aria-labelledby={`q-${q.id}-t`}>
+    <article
+      className={`fcard fu${menu ? " fcard--menu-open" : ""}`}
+      style={{ animationDelay: `${Math.min(index, 6) * 0.05}s` }}
+      aria-labelledby={hasTitle ? `q-${q.feedKey || q.id}-t` : undefined}
+    >
+      {isComm && q.communityName && (
+        <div style={{ marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => onOpenCommunity && onOpenCommunity(q.communitySlug)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "4px 11px",
+              borderRadius: 999,
+              fontSize: 12,
+              fontWeight: 700,
+              background: `${q.communityAccentColor || "#2563EB"}1A`,
+              color: q.communityAccentColor || "var(--accent)",
+              border: `1px solid ${q.communityAccentColor || "#2563EB"}44`,
+              cursor: "pointer",
+            }}
+          >
+            <Ic n="users" s={12} c={q.communityAccentColor || "var(--accent)"} />
+            <span>From {q.communityName}</span>
+            <span aria-hidden="true">›</span>
+          </button>
+        </div>
+      )}
       <header className="fcard-head">
         <button
           ref={authorBtn}
@@ -142,20 +176,24 @@ export default function QuestionCard({
         </div>
       </header>
 
-      <h3 id={`q-${q.id}-t`} className="fcard-title">
-        <button type="button" onClick={() => onOpen(q)}>{q.title}</button>
-      </h3>
+      {hasTitle && (
+        <h3 id={`q-${q.feedKey || q.id}-t`} className="fcard-title">
+          <button type="button" onClick={() => onOpen(q)}>{q.title}</button>
+        </h3>
+      )}
       {q.body && (
         <>
-          <RichTextView
-            body={q.body}
-            bodyHtml={q.bodyHtml}
-            onMention={onMention}
-            className="fcard-body"
-            style={expanded ? undefined : clip}
-          />
+          <div onClick={!hasTitle ? () => onOpen(q) : undefined}>
+            <RichTextView
+              body={q.body}
+              bodyHtml={q.bodyHtml}
+              onMention={onMention}
+              className={`fcard-body${!hasTitle ? " fcard-body--lead" : ""}`}
+              style={expanded ? undefined : clip}
+            />
+          </div>
           {long && (
-            <button type="button" className="fcard-more-btn" onClick={() => onToggle(q.id)} aria-expanded={!!expanded}>
+            <button type="button" className="fcard-more-btn" onClick={() => onToggle(q.feedKey || q.id)} aria-expanded={!!expanded}>
               {expanded ? t("feed.showLess") : t("feed.readMore")}
             </button>
           )}
@@ -251,21 +289,23 @@ export default function QuestionCard({
 
       <footer className="fcard-foot">
         <div className="fcard-actions">
-          <VoteButtons votes={q.votes} voted={q.voted} onVote={(d) => onVote(q.id, d)} />
-          <button type="button" className={`qa-btn${q.liked ? " liked" : ""}`} onClick={() => onLike(q.id)} aria-pressed={q.liked} aria-label={t("feed.like")}>
+          {!isComm && <VoteButtons votes={q.votes} voted={q.voted} onVote={(d) => onVote(q.id, d)} />}
+          <button type="button" className={`qa-btn${q.liked ? " liked" : ""}`} onClick={() => onLike(q)} aria-pressed={q.liked} aria-label={t("feed.like")}>
             <Ic n="heart" s={14} c={q.liked ? "#EF4444" : "currentColor"} />{q.likes}
           </button>
           <button type="button" className="qa-btn" onClick={() => onOpen(q)} aria-label={t("feed.answersN", { n: q.ans })}>
             <Ic n="msg" s={14} />{q.ans}
           </button>
-          <ShareFan url={url} text={q.title} toast={toast} label={q.title} />
+          <ShareFan url={url} text={q.title || q.body.slice(0, 80)} toast={toast} label={q.title || "Post"} />
         </div>
-        <div className="fcard-actions">
-          <span className="qa-views" title={t("feed.views")}><Ic n="eye" s={13} />{q.views}</span>
-          <button type="button" className={`qa-btn${q.saved ? " saved" : ""}`} onClick={() => onSave(q.id)} aria-pressed={q.saved}>
-            <Ic n="bookmark" s={14} c={q.saved ? T.gold : "currentColor"} />{q.saved ? t("feed.saved") : t("feed.save")}
-          </button>
-        </div>
+        {!isComm && (
+          <div className="fcard-actions">
+            <span className="qa-views" title={t("feed.views")}><Ic n="eye" s={13} />{q.views}</span>
+            <button type="button" className={`qa-btn${q.saved ? " saved" : ""}`} onClick={() => onSave(q.id)} aria-pressed={q.saved}>
+              <Ic n="bookmark" s={14} c={q.saved ? T.gold : "currentColor"} />{q.saved ? t("feed.saved") : t("feed.save")}
+            </button>
+          </div>
+        )}
       </footer>
     </article>
   );

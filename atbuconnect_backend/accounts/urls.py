@@ -26,6 +26,7 @@ urlpatterns = [
     path("users/<int:pk>/followers/", views.FollowersListView.as_view(), name="user-followers"),
     path("users/<int:pk>/following/", views.FollowingListView.as_view(), name="user-following"),
     path("users/<int:pk>/rate-sug/", views.SUGRatingView.as_view(), name="user-rate-sug"),
+    path("users/<int:pk>/suspend/", views.UserSuspendView.as_view(), name="user-suspend"),
 
     # Student verification system
     path("verification/apply/", views.StudentVerificationApplyView.as_view(), name="verification-apply"),

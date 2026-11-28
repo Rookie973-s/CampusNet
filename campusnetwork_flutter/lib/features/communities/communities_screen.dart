@@ -277,11 +277,13 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            // Category pills
+            // Category pills (generous height + Clip.none so Claymorphism shadows never clip!)
             SizedBox(
-              height: 40,
+              height: 54,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
+                clipBehavior: Clip.none,
+                padding: const EdgeInsets.symmetric(vertical: 7),
                 itemCount: kCommunityCategories.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (_, i) {

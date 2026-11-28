@@ -272,8 +272,9 @@ def _validate_post_length(user, body_text: str):
 
 
 class QuestionCreateSerializer(serializers.ModelSerializer):
-    """Create a post: text + optional rich formatting + up to 6 images OR one video."""
+    """Create a post: text + optional headline + optional rich formatting + up to 6 images OR one video."""
 
+    title = serializers.CharField(max_length=300, required=False, allow_blank=True, default="")
     tags = TagField(many=True, slug_field="name", queryset=Tag.objects.all(), required=False)
 
     class Meta:
@@ -282,10 +283,13 @@ class QuestionCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         request = self.context["request"]
+        attrs["title"] = (attrs.get("title") or "").strip()
         if attrs.get("body_html"):
             attrs["body_html"] = sanitize_rich_html(attrs["body_html"])
             if not attrs.get("body"):
                 attrs["body"] = strip_html_to_text(attrs["body_html"])
+        if not (attrs.get("body") or "").strip() and not attrs["title"]:
+            raise serializers.ValidationError({"body": "Please write something for your post."})
 
         _validate_post_length(request.user, attrs.get("body", ""))
 
@@ -354,6 +358,7 @@ class QuestionCreateSerializer(serializers.ModelSerializer):
 class QuestionUpdateSerializer(serializers.ModelSerializer):
     """Used by verified students (and moderators) to edit their own posts."""
 
+    title = serializers.CharField(max_length=300, required=False, allow_blank=True)
     tags = TagField(many=True, slug_field="name", queryset=Tag.objects.all(), required=False)
 
     class Meta:

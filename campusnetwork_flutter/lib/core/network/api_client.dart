@@ -24,24 +24,82 @@ String? normalizeMediaUrl(String? url) {
   return u;
 }
 
-/// Clean human-readable error extraction (never leaks raw HTML <!doctype html> pages).
-String parseApiError(Object err, [String fallback = 'Something went wrong.']) {
+/// Clean human-readable error extraction — NEVER exposes backend hostnames, URLs,
+/// DioException internals, SocketException, or raw HTML error pages to users.
+String _sanitizeMsg(String raw, String fallback) {
+  final t = raw.trim();
+  if (t.isEmpty) return fallback;
+  final lower = t.toLowerCase();
+  if (lower.contains('failed host lookup') ||
+      lower.contains('socketexception') ||
+      lower.contains('connection errored') ||
+      lower.contains('network is unreachable') ||
+      lower.contains('connection refused') ||
+      lower.contains('connection reset')) {
+    return 'No internet connection. Please check your network and try again.';
+  }
+  if (lower.contains('timed out') || lower.contains('timeout')) {
+    return 'The connection timed out. Please try again.';
+  }
+  if (lower.contains('onrender.com') ||
+      lower.contains('http://') ||
+      lower.contains('https://') ||
+      lower.contains('dioexception') ||
+      lower.contains('requestoptions') ||
+      lower.contains('validatestatus') ||
+      lower.contains('<!doctype') ||
+      lower.contains('<html')) {
+    return fallback;
+  }
+  return t.length > 180 ? '${t.substring(0, 177)}...' : t;
+}
+
+String parseApiError(Object err, [String fallback = 'Something went wrong. Please try again.']) {
   if (err is DioException) {
+    switch (err.type) {
+      case DioExceptionType.connectionError:
+      case DioExceptionType.unknown:
+        if (err.response == null) {
+          return 'No internet connection. Please check your network and try again.';
+        }
+        break;
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return 'The server took too long to respond. Please check your connection and try again.';
+      case DioExceptionType.cancel:
+        return 'Request cancelled.';
+      case DioExceptionType.badCertificate:
+        return 'Secure connection could not be verified. Please check your device date/time and network.';
+      case DioExceptionType.badResponse:
+      default:
+        break;
+    }
+
+    final statusCode = err.response?.statusCode ?? 0;
+    if (statusCode >= 500) {
+      return 'Something went wrong on our end. Please try again in a moment.';
+    }
+    if (statusCode == 401) {
+      return 'Please sign in to continue.';
+    }
+
     final data = err.response?.data;
     if (data is Map) {
-      if (data['detail'] is String) return data['detail'] as String;
+      if (data['detail'] is String) return _sanitizeMsg(data['detail'] as String, fallback);
       if (data.isNotEmpty) {
         final key = data.keys.first;
         final val = data[key];
         final msg = val is List && val.isNotEmpty ? val.first.toString() : val.toString();
-        return key == 'non_field_errors' ? msg : '$key: $msg';
+        final combined = key == 'non_field_errors' ? msg : '$key: $msg';
+        return _sanitizeMsg(combined, fallback);
       }
-    } else if (data is String && !data.trimLeft().startsWith('<')) {
-      return data.length > 160 ? data.substring(0, 160) : data;
+    } else if (data is String) {
+      return _sanitizeMsg(data, fallback);
     }
-    return err.message ?? fallback;
+    return fallback;
   }
-  return err.toString();
+  return _sanitizeMsg(err.toString(), fallback);
 }
 
 class TokenStorage {

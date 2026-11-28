@@ -141,7 +141,11 @@ class QuestionViewSet(viewsets.ModelViewSet):
     parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ["department__name", "tags__name"]
-    search_fields = ["title", "body", "tags__name", "department__name", "author__username"]
+    search_fields = [
+        "title", "body", "tags__name", "department__name",
+        "author__username", "author__first_name", "author__last_name",
+        "answers__body",
+    ]
 
     def get_permissions(self):
         if self.action in ("update", "partial_update"):
@@ -172,9 +176,116 @@ class QuestionViewSet(viewsets.ModelViewSet):
             return QuestionDetailSerializer
         return QuestionListSerializer
 
-    def _rank_trending(self, qs):
-        """Weighted trending ranking balancing engagement, recency decay,
-        user's department relevance, and followed accounts."""
+    def _engagement_score(self, item, now, user_dept_id, followed_ids):
+        """Twitter/X-style multi-engagement + velocity gravity + personalization score
+        working uniformly for both Question and CommunityPost objects."""
+        age_hours = max(0.25, (now - item.created_at).total_seconds() / 3600.0)
+        likes = getattr(item, "n_likes", 0) or 0
+        ans = getattr(item, "n_ans", 0) or 0
+        upvotes = getattr(item, "n_up", 0) or 0
+        downvotes = getattr(item, "n_down", 0) or 0
+        poll_votes = getattr(item, "n_poll_votes", 0) or 0
+        bookmarks = getattr(item, "n_bookmarks", 0) or 0
+        views = getattr(item, "views", 0) or 0
+
+        # Multi-signal engagement weighting (comments & bookmarks & likes > votes > poll votes > views)
+        engagement = (
+            (likes * 3.5)
+            + (ans * 5.0)
+            + (upvotes * 2.5)
+            - (downvotes * 1.2)
+            + (poll_votes * 2.0)
+            + (bookmarks * 4.0)
+            + (math.log1p(views) * 1.4)
+        )
+        # Velocity gravity decay so active recent posts dominate the feed
+        freshness = 1.0 / ((age_hours + 2.0) ** 1.25)
+        base = (max(0.0, engagement) + 1.5) * freshness
+
+        mult = 1.0
+        dept_id = getattr(item, "department_id", None)
+        if user_dept_id and dept_id == user_dept_id:
+            mult += 0.25
+        if getattr(item, "author_id", None) in followed_ids:
+            mult += 0.40
+        author = getattr(item, "author", None)
+        if author and (getattr(author, "is_verified_student", False) or getattr(author, "is_verified_staff", False)):
+            mult += 0.10
+        if getattr(item, "promoted", False) or getattr(item, "is_important", False):
+            mult += 0.55
+        return base * mult
+
+    def _serialize_community_post_as_feed_item(self, cp, request):
+        """Adapt a public CommunityPost into the standard Feed item schema with clickable community metadata."""
+        from .serializers import human_time
+        user = request.user if request.user.is_authenticated else None
+        liked = bool(user and cp.likes_set.filter(user=user).exists())
+        media = []
+        if cp.image:
+            try:
+                url = request.build_absolute_uri(cp.image.url)
+            except Exception:
+                url = cp.image.url
+            media.append({
+                "id": cp.id,
+                "kind": "image",
+                "url": url,
+                "width": None,
+                "height": None,
+                "duration": None,
+            })
+        comm_avatar = ""
+        if cp.community.avatar:
+            try:
+                comm_avatar = request.build_absolute_uri(cp.community.avatar.url)
+            except Exception:
+                comm_avatar = cp.community.avatar.url
+        n_ans = getattr(cp, "n_ans", None)
+        if n_ans is None:
+            n_ans = cp.comments.count()
+        n_likes = getattr(cp, "n_likes", None)
+        if n_likes is None:
+            n_likes = cp.likes_set.count()
+        return {
+            "id": cp.id,
+            "feed_key": f"cp-{cp.id}",
+            "public_id": f"cp-{cp.id}",
+            "author": UserPublicSerializer(cp.author, context={"request": request}).data,
+            "dept": cp.community.name,
+            "department": None,
+            "title": cp.title or "",
+            "body": cp.body or "",
+            "body_html": cp.body_html or "",
+            "tags": [cp.community.category] if cp.community.category else [],
+            "media": media,
+            "votes": 0,
+            "likes": n_likes,
+            "ans": n_ans,
+            "views": 0,
+            "answered": n_ans > 0,
+            "promoted": bool(cp.is_important),
+            "time": human_time(cp.created_at),
+            "voted": None,
+            "liked": liked,
+            "saved": False,
+            "can_delete": False,
+            "can_edit": False,
+            "delete_deadline": None,
+            "poll_options": [],
+            "poll_total_votes": 0,
+            "my_poll_option": None,
+            "created_at": cp.created_at.isoformat(),
+            "edited_at": cp.edited_at.isoformat() if cp.edited_at else None,
+            "is_community_post": True,
+            "community_post_id": cp.id,
+            "community_id": cp.community_id,
+            "community_slug": cp.community.slug,
+            "community_name": cp.community.name,
+            "community_accent_color": cp.community.accent_color or "#2563EB",
+            "community_avatar_url": comm_avatar,
+        }
+
+    def _rank_trending(self, items):
         now = timezone.now()
         user = self.request.user if self.request.user.is_authenticated else None
         followed_ids = set()
@@ -183,35 +294,9 @@ class QuestionViewSet(viewsets.ModelViewSet):
             user_dept_id = user.department_id
             followed_ids = set(Follow.objects.filter(follower=user).values_list("following_id", flat=True))
 
-        # Limit scoring set to a reasonable recent/active pool for fast sorting
-        items = list(qs[:200])
-
-        def score(q):
-            age_hours = max(0.25, (now - q.created_at).total_seconds() / 3600.0)
-            likes = getattr(q, "n_likes", 0) or 0
-            upvotes = getattr(q, "n_up", 0) or 0
-            downvotes = getattr(q, "n_down", 0) or 0
-            ans = getattr(q, "n_ans", 0) or 0
-            views = q.views or 0
-
-            # Weighted engagement (not equal weights: answers & likes > net votes > views)
-            engagement = (likes * 3.0) + (ans * 4.5) + (max(0, upvotes - downvotes) * 2.0) + (math.log1p(views) * 1.2)
-            # Gravity decay so fresh active posts rise above stale ones
-            freshness = 1.0 / ((age_hours + 3.0) ** 1.15)
-            base = (engagement + 1.5) * freshness
-
-            # Personalization multiplier (gentle boost, never overwhelms quality)
-            mult = 1.0
-            if user_dept_id and q.department_id == user_dept_id:
-                mult += 0.25
-            if q.author_id in followed_ids:
-                mult += 0.35
-            if q.promoted:
-                mult += 0.50
-            return base * mult
-
-        items.sort(key=score, reverse=True)
-        return items
+        pool = list(items[:240]) if not isinstance(items, list) else list(items)
+        pool.sort(key=lambda item: self._engagement_score(item, now, user_dept_id, followed_ids), reverse=True)
+        return pool
 
     def get_queryset(self):
         qs = super().get_queryset().annotate(
@@ -219,6 +304,8 @@ class QuestionViewSet(viewsets.ModelViewSet):
             n_up=Count("votes_set", filter=Q(votes_set__direction="up"), distinct=True),
             n_down=Count("votes_set", filter=Q(votes_set__direction="down"), distinct=True),
             n_ans=Count("answers", distinct=True),
+            n_poll_votes=Count("poll_votes", distinct=True),
+            n_bookmarks=Count("bookmarks", distinct=True),
         )
         if self.action == "list" and self.request.user.is_authenticated:
             hidden_ids = HiddenQuestion.objects.filter(user=self.request.user).values_list("question_id", flat=True)
@@ -236,10 +323,10 @@ class QuestionViewSet(viewsets.ModelViewSet):
                     Q(department__name__iexact=topic) | Q(tags__name__iexact=topic)
                 ).distinct()
 
-        # Topic-based discovery filter (e.g. clicking a Trending Now entry)
+        # Topic/keyword-based discovery filter (e.g. clicking a Trending Now keyword)
         discovery = (p.get("discovery") or "").strip()
         if discovery:
-            keywords = _extract_topic_keywords(discovery)
+            keywords = _extract_topic_keywords(discovery) or [discovery.lstrip("#").lower()]
             if keywords:
                 q_obj = Q()
                 for kw in keywords:
@@ -248,9 +335,9 @@ class QuestionViewSet(viewsets.ModelViewSet):
                         | Q(body__icontains=kw)
                         | Q(tags__name__icontains=kw)
                         | Q(department__name__icontains=kw)
+                        | Q(answers__body__icontains=kw)
                     )
                 matched = qs.filter(q_obj).distinct()
-                # Reasonable fallback when direct keyword matches are scarce
                 if matched.exists():
                     qs = matched
                 else:
@@ -272,9 +359,64 @@ class QuestionViewSet(viewsets.ModelViewSet):
         return qs
 
     def list(self, request, *args, **kwargs):
-        ordering = request.query_params.get("ordering", "trending")
+        p = request.query_params
+        ordering = (p.get("ordering") or "trending").strip().lower()
+        topic = (p.get("topic") or "").strip()
+        discovery = (p.get("discovery") or "").strip()
+        search_q = (p.get("search") or "").strip()
+        is_all_faculties = (not topic) or (topic.lower() in ("all", "all faculties"))
+        include_community_posts = (
+            is_all_faculties
+            and not p.get("mine")
+            and not p.get("saved")
+            and not search_q
+        )
+
         qs = self.filter_queryset(self.get_queryset())
-        if ordering == "trending" and not request.query_params.get("mine") and not request.query_params.get("saved"):
+
+        if include_community_posts:
+            from communities.models import Community, CommunityPost
+            cp_qs = (
+                CommunityPost.objects.filter(community__visibility=Community.Visibility.PUBLIC)
+                .select_related("community", "author", "author__department")
+                .annotate(
+                    n_likes=Count("likes_set", distinct=True),
+                    n_ans=Count("comments", distinct=True),
+                )
+            )
+            if discovery:
+                kws = _extract_topic_keywords(discovery) or [discovery.lstrip("#").lower()]
+                cq = Q()
+                for kw in kws:
+                    cq |= (
+                        Q(title__icontains=kw)
+                        | Q(body__icontains=kw)
+                        | Q(community__name__icontains=kw)
+                        | Q(comments__body__icontains=kw)
+                    )
+                cp_qs = cp_qs.filter(cq).distinct()
+            if ordering == "unanswered":
+                cp_qs = cp_qs.filter(n_ans=0)
+
+            combined = list(qs[:180]) + list(cp_qs.order_by("-created_at")[:60])
+            if ordering == "newest" or ordering == "unanswered":
+                combined.sort(key=lambda x: x.created_at, reverse=True)
+            else:
+                combined = self._rank_trending(combined)
+
+            page = self.paginate_queryset(combined)
+            items_to_serialize = page if page is not None else combined
+            out = []
+            for item in items_to_serialize:
+                if isinstance(item, Question):
+                    out.append(self.get_serializer(item).data)
+                else:
+                    out.append(self._serialize_community_post_as_feed_item(item, request))
+            if page is not None:
+                return self.get_paginated_response(out)
+            return Response(out)
+
+        if ordering == "trending" and not p.get("mine") and not p.get("saved"):
             ranked = self._rank_trending(qs)
             page = self.paginate_queryset(ranked)
             if page is not None:
@@ -285,22 +427,125 @@ class QuestionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="trending-topics")
     def trending_topics(self, request):
-        """Return dynamic Trending Now discovery topics derived from real active discussions."""
-        qs = self.get_queryset()
-        ranked = self._rank_trending(qs)[:5]
+        """Keyword-engagement-driven Trending Now rankings across regular posts & public community posts.
+
+        Aggregates total engagements (likes, comments, votes, poll votes, bookmarks, views)
+        across all posts sharing each keyword/hashtag so rankings reflect real campus buzz.
+        """
+        from collections import defaultdict
+        from communities.models import Community, CommunityPost
+
+        qs = list(self.get_queryset()[:180])
+        cps = list(
+            CommunityPost.objects.filter(community__visibility=Community.Visibility.PUBLIC)
+            .select_related("community", "author")
+            .annotate(
+                n_likes=Count("likes_set", distinct=True),
+                n_ans=Count("comments", distinct=True),
+            )
+            .order_by("-created_at")[:80]
+        )
+
+        kw_stats = defaultdict(lambda: {
+            "score": 0.0,
+            "engagements": 0,
+            "likes": 0,
+            "answers": 0,
+            "post_count": 0,
+            "sample_id": None,
+            "sample_dept": "Campus",
+            "display": "",
+            "is_tag": False,
+        })
+
+        def add_item(item, *, is_comm=False):
+            likes = getattr(item, "n_likes", 0) or 0
+            ans = getattr(item, "n_ans", 0) or 0
+            up = getattr(item, "n_up", 0) or 0
+            poll_v = getattr(item, "n_poll_votes", 0) or 0
+            bms = getattr(item, "n_bookmarks", 0) or 0
+            views = getattr(item, "views", 0) or 0
+
+            raw_eng = likes + ans + up + poll_v + bms
+            weighted = (likes * 3.5) + (ans * 5.0) + (up * 2.5) + (poll_v * 2.0) + (bms * 4.0) + (math.log1p(views) * 1.2) + 1.0
+
+            seen_keys = set()
+            tag_list = [] if is_comm else list(item.tags.values_list("name", flat=True))
+            for t in tag_list:
+                clean = t.strip().lstrip("#")
+                key = clean.lower()
+                if len(key) >= 2 and key not in seen_keys:
+                    seen_keys.add(key)
+                    st = kw_stats[key]
+                    st["score"] += weighted * 1.35
+                    st["engagements"] += raw_eng
+                    st["likes"] += likes
+                    st["answers"] += ans
+                    st["post_count"] += 1
+                    st["is_tag"] = True
+                    st["display"] = f"#{clean}"
+                    if st["sample_id"] is None:
+                        st["sample_id"] = item.id
+                        st["sample_dept"] = item.community.name if is_comm else (item.department.name if item.department else "General")
+
+            # Extract hashtags inline & meaningful keywords from title/body
+            text = f"{item.title or ''} {item.body or ''}"
+            for ht in re.findall(r"#([A-Za-z0-9_]{2,30})", text):
+                key = ht.lower()
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    st = kw_stats[key]
+                    st["score"] += weighted * 1.3
+                    st["engagements"] += raw_eng
+                    st["likes"] += likes
+                    st["answers"] += ans
+                    st["post_count"] += 1
+                    st["is_tag"] = True
+                    st["display"] = f"#{ht}"
+                    if st["sample_id"] is None:
+                        st["sample_id"] = item.id
+                        st["sample_dept"] = item.community.name if is_comm else (item.department.name if item.department else "General")
+
+            for kw in _extract_topic_keywords(text):
+                if kw not in seen_keys and len(kw) >= 4:
+                    seen_keys.add(kw)
+                    st = kw_stats[kw]
+                    st["score"] += weighted
+                    st["engagements"] += raw_eng
+                    st["likes"] += likes
+                    st["answers"] += ans
+                    st["post_count"] += 1
+                    if not st["display"]:
+                        st["display"] = kw.title()
+                    if st["sample_id"] is None:
+                        st["sample_id"] = item.id
+                        st["sample_dept"] = item.community.name if is_comm else (item.department.name if item.department else "General")
+
+        for q in qs:
+            add_item(q, is_comm=False)
+        for cp in cps:
+            add_item(cp, is_comm=True)
+
+        # Prefer keywords appearing across multiple posts or high total engagement
+        ranked_kws = sorted(
+            kw_stats.items(),
+            key=lambda kv: (kv[1]["score"] * (1.0 + 0.3 * min(kv[1]["post_count"] - 1, 5)), kv[1]["engagements"]),
+            reverse=True,
+        )[:5]
+
         out = []
-        for idx, q in enumerate(ranked, start=1):
-            kws = _extract_topic_keywords(q.title)
-            tag_names = list(q.tags.values_list("name", flat=True)[:2])
-            discovery_query = tag_names[0] if tag_names else (" ".join(kws[:2]) or q.title[:40])
+        for idx, (key, st) in enumerate(ranked_kws, start=1):
             out.append({
                 "n": idx,
-                "id": q.id,
-                "title": q.title,
-                "dept": q.department.name if q.department else "General",
-                "answers": getattr(q, "n_ans", 0),
-                "likes": getattr(q, "n_likes", 0),
-                "discovery": discovery_query,
+                "id": st["sample_id"] or idx,
+                "title": st["display"],
+                "keyword": key,
+                "dept": st["sample_dept"],
+                "post_count": st["post_count"],
+                "engagements": st["engagements"],
+                "answers": st["answers"],
+                "likes": st["likes"],
+                "discovery": key,
             })
         return Response(out)
 
@@ -534,6 +779,52 @@ class QuestionViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=["post"])
+    def takedown(self, request, pk=None):
+        """POST /api/questions/<id>/takedown/ — Admin moderation takedown with in-app + email notification."""
+        if not is_moderator(request.user):
+            return Response({"detail": "Only administrators can take down posts."}, status=403)
+        question = self.get_object()
+        reason = (request.data.get("reason") or request.data.get("note") or "").strip()
+        if len(reason) < 5:
+            return Response({"detail": "Please provide a clear reason for taking down this post."}, status=400)
+        author = question.author
+        snippet = (question.title or question.body or f"Post #{question.pk}")[:80]
+        from advertising.models import AuditLog
+        AuditLog.objects.create(
+            actor=request.user,
+            action="post.takedown",
+            target_type="question",
+            target_id=str(question.pk),
+            metadata={"snippet": snippet, "author_id": author.pk, "reason": reason},
+            ip_hash=hash_ip(request),
+        )
+        notify(
+            author,
+            notif_type=Notification.Type.SYSTEM,
+            text=f"Your post “{snippet}” was removed by an administrator. Reason: {reason[:160]}",
+            actor=request.user,
+            link="/feed",
+            dedupe_seconds=0,
+        )
+        try:
+            from accounts.email_utils import send_platform_email
+            send_platform_email(
+                recipient_email=author.email,
+                subject="CampusNetwork (Cenet): Your Post Was Taken Down",
+                message=(
+                    f"Hello {author.display_name},\n\n"
+                    f"Your post (“{snippet}”) was taken down by a CampusNetwork administrator for violating community guidelines.\n\n"
+                    f"Reason: {reason}\n\n"
+                    f"— CampusNetwork (Cenet)"
+                ),
+                allow_formsubmit=True,
+            )
+        except Exception:
+            pass
+        question.delete()
+        return Response({"detail": "Post removed and author notified.", "reason": reason})
+
+    @action(detail=True, methods=["post"])
     def report(self, request, pk=None):
         question = self.get_object()
         reason = (request.data.get("reason") or "").strip()[:255]
@@ -678,3 +969,137 @@ class AnswerViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Please provide a brief reason."}, status=400)
         ContentReport.objects.create(reporter=request.user, answer=answer, reason=reason)
         return Response({"detail": "Comment reported for review."}, status=201)
+
+
+from rest_framework.views import APIView
+
+
+class UniversalSearchView(APIView):
+    """GET /api/search/?q=<keyword> — Deep keyword search across everything users have done:
+    People, Posts, Post Comments, Communities, Community Posts, and Community Comments."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        q = (request.query_params.get("q") or "").strip()
+        if len(q) < 2:
+            return Response({
+                "query": q,
+                "people": [],
+                "posts": [],
+                "comments": [],
+                "communities": [],
+                "community_posts": [],
+            })
+
+        from communities.models import Community, CommunityPost, CommunityPostComment
+        from communities.serializers import CommunitySerializer, CommunityPostSerializer
+
+        # 1. People
+        people_qs = User.objects.filter(is_active=True).filter(
+            Q(username__icontains=q)
+            | Q(first_name__icontains=q)
+            | Q(last_name__icontains=q)
+            | Q(bio__icontains=q)
+            | Q(department__name__icontains=q)
+            | Q(title__icontains=q)
+            | Q(level__icontains=q)
+        ).select_related("department")[:15]
+        people = UserPublicSerializer(people_qs, many=True, context={"request": request}).data
+
+        # 2. Posts (matching title, body, tags, faculty, author, OR comments on that post)
+        posts_qs = (
+            Question.objects.select_related("author", "author__department", "department")
+            .prefetch_related("tags", "media", "poll_options")
+            .filter(
+                Q(title__icontains=q)
+                | Q(body__icontains=q)
+                | Q(tags__name__icontains=q)
+                | Q(department__name__icontains=q)
+                | Q(author__username__icontains=q)
+                | Q(author__first_name__icontains=q)
+                | Q(author__last_name__icontains=q)
+                | Q(answers__body__icontains=q)
+            )
+            .distinct()
+            .order_by("-created_at")[:20]
+        )
+        posts = QuestionListSerializer(posts_qs, many=True, context={"request": request}).data
+
+        # 3. Direct post comments matching keyword
+        ans_qs = (
+            Answer.objects.select_related("author", "author__department", "question")
+            .filter(Q(body__icontains=q) | Q(author__username__icontains=q))
+            .order_by("-created_at")[:15]
+        )
+        comments = [
+            {
+                "id": a.id,
+                "body": a.body[:240],
+                "author": UserPublicSerializer(a.author, context={"request": request}).data,
+                "question_id": a.question_id,
+                "question_public_id": a.question.public_id or str(a.question_id),
+                "question_title": (a.question.title or a.question.body[:80]),
+                "created_at": a.created_at.isoformat(),
+            }
+            for a in ans_qs
+        ]
+
+        # 4. Communities
+        comm_qs = Community.objects.filter(visibility=Community.Visibility.PUBLIC).filter(
+            Q(name__icontains=q)
+            | Q(description__icontains=q)
+            | Q(category__icontains=q)
+            | Q(slug__icontains=q)
+        )[:12]
+        communities = CommunitySerializer(comm_qs, many=True, context={"request": request}).data
+
+        # 5. Community posts (matching title, body, community name, author, OR community post comments!)
+        cp_qs = (
+            CommunityPost.objects.filter(community__visibility=Community.Visibility.PUBLIC)
+            .select_related("community", "author", "author__department")
+            .filter(
+                Q(title__icontains=q)
+                | Q(body__icontains=q)
+                | Q(community__name__icontains=q)
+                | Q(author__username__icontains=q)
+                | Q(comments__body__icontains=q)
+            )
+            .distinct()
+            .order_by("-created_at")[:15]
+        )
+        community_posts = CommunityPostSerializer(cp_qs, many=True, context={"request": request}).data
+        for idx, cp_obj in enumerate(cp_qs):
+            community_posts[idx]["community_slug"] = cp_obj.community.slug
+            community_posts[idx]["community_name"] = cp_obj.community.name
+
+        # 6. Community comments
+        cc_qs = (
+            CommunityPostComment.objects.filter(post__community__visibility=Community.Visibility.PUBLIC)
+            .select_related("author", "post", "post__community")
+            .filter(Q(body__icontains=q))
+            .order_by("-created_at")[:10]
+        )
+        community_comments = [
+            {
+                "id": cc.id,
+                "body": cc.body[:240],
+                "author": UserPublicSerializer(cc.author, context={"request": request}).data,
+                "community_slug": cc.post.community.slug,
+                "community_name": cc.post.community.name,
+                "post_id": cc.post_id,
+                "post_title": (cc.post.title or cc.post.body[:80]),
+                "created_at": cc.created_at.isoformat(),
+            }
+            for cc in cc_qs
+        ]
+
+        return Response({
+            "query": q,
+            "people": people,
+            "posts": posts,
+            "comments": comments,
+            "communities": communities,
+            "community_posts": community_posts,
+            "community_comments": community_comments,
+        })

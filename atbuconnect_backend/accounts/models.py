@@ -251,6 +251,7 @@ class StudentVerificationApplication(models.Model):
 
     class Status(models.TextChoices):
         PENDING = "pending", "Pending Review"
+        AWAITING_PAYMENT = "awaiting_payment", "Approved — Awaiting Payment"
         APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
         INFO_REQUIRED = "info_required", "Additional Information Required"
@@ -281,7 +282,7 @@ class StudentVerificationApplication(models.Model):
         null=True,
     )
     is_renewal = models.BooleanField(default=False)
-    status = models.CharField(max_length=15, choices=Status.choices, default=Status.PENDING)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     payment_link = models.CharField(max_length=255, blank=True)
     reviewed_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True,

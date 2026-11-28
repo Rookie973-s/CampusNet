@@ -12,7 +12,7 @@ class CampaignAdmin(admin.ModelAdmin):
     ]
     list_filter = ["status", "payment_status", "start_date"]
     search_fields = ["name", "headline", "advertiser__username", "advertiser__email"]
-    actions = ["approve_campaigns", "pause_campaigns"]
+    actions = ["approve_campaigns", "pause_campaigns", "takedown_campaigns"]
 
     @admin.action(description="Approve selected ad campaigns")
     def approve_campaigns(self, request, queryset):
@@ -30,6 +30,40 @@ class CampaignAdmin(admin.ModelAdmin):
     def pause_campaigns(self, request, queryset):
         n = queryset.update(status=Campaign.Status.PAUSED)
         self.message_user(request, f"{n} campaign(s) paused.", messages.WARNING)
+
+    @admin.action(description="Take down selected ads (notify advertiser in-app + email)")
+    def takedown_campaigns(self, request, queryset):
+        from accounts.email_utils import send_platform_email
+        from notifications.models import Notification
+        from notifications.services import notify
+        count = 0
+        for camp in queryset.select_related("advertiser"):
+            reason = camp.review_note or "Ad did not comply with CampusNetwork advertising guidelines."
+            camp.status = Campaign.Status.REJECTED
+            camp.reviewed_by = request.user
+            camp.reviewed_at = timezone.now()
+            camp.review_note = reason
+            camp.save(update_fields=["status", "reviewed_by", "reviewed_at", "review_note", "updated_at"])
+            notify(
+                camp.advertiser,
+                notif_type=Notification.Type.SYSTEM,
+                text=f"Your ad campaign “{camp.name}” was taken down by an administrator. Reason: {reason[:160]}",
+                actor=request.user,
+                link="/ads",
+                dedupe_seconds=0,
+            )
+            send_platform_email(
+                recipient_email=camp.advertiser.email,
+                subject=f"CampusNetwork Ads: Campaign “{camp.name}” Taken Down",
+                message=(
+                    f"Hello {camp.advertiser.display_name},\n\n"
+                    f"Your ad campaign “{camp.name}” was taken down by a CampusNetwork administrator.\n"
+                    f"Reason: {reason}\n\n— CampusNetwork (Cenet)"
+                ),
+                allow_formsubmit=True,
+            )
+            count += 1
+        self.message_user(request, f"{count} ad campaign(s) taken down and advertisers notified.", messages.WARNING)
 
 
 @admin.register(AdImpression)

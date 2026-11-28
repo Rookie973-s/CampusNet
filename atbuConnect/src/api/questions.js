@@ -69,6 +69,14 @@ export function flattenQuestion(q) {
     myPollOption: q.my_poll_option ?? null,
     createdAt: q.created_at || null,
     editedAt: q.edited_at || null,
+    feedKey: q.feed_key || `q-${q.id}`,
+    isCommunityPost: !!q.is_community_post,
+    communityPostId: q.community_post_id || (q.is_community_post ? q.id : null),
+    communityId: q.community_id || null,
+    communitySlug: q.community_slug || "",
+    communityName: q.community_name || "",
+    communityAccentColor: q.community_accent_color || "#2563EB",
+    communityAvatarUrl: q.community_avatar_url || null,
   };
 }
 
@@ -103,14 +111,27 @@ export async function listTrendingTopics() {
   return Array.isArray(data) ? data : [];
 }
 
+export async function universalSearch(query) {
+  const data = await api.get(`/search/?q=${encodeURIComponent(query || "")}`);
+  return {
+    query: data.query || query || "",
+    people: data.people || [],
+    posts: (data.posts || []).map(flattenQuestion),
+    comments: data.comments || [],
+    communities: data.communities || [],
+    communityPosts: data.community_posts || [],
+    communityComments: data.community_comments || [],
+  };
+}
+
 export async function getQuestion(id) {
   const data = await api.get(`/questions/${id}/`);
   return flattenQuestion(data);
 }
 
-export async function createQuestion({ title, body, bodyHtml = "", tags, department, images = [], video = null, onProgress, signal }) {
+export async function createQuestion({ title = "", body, bodyHtml = "", tags, department, images = [], video = null, onProgress, signal }) {
   const form = new FormData();
-  form.append("title", title);
+  form.append("title", (title || "").trim());
   form.append("body", body);
   if (bodyHtml) form.append("body_html", bodyHtml);
   if (department) form.append("department", department);

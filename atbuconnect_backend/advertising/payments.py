@@ -142,7 +142,7 @@ class PaystackGateway:
             method=method.upper(),
         )
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=8) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="ignore")
@@ -238,7 +238,27 @@ class PaystackGateway:
             )
 
         ref = f"CN-{purpose[:3].upper()}-{secrets.token_hex(6).upper()}"
-        dva = self.ensure_dedicated_account(user)
+        # Paystack Test Keys (sk_test_*) do not support Dedicated Virtual Accounts (DVA)
+        # and stall/fail on /dedicated_account. Skip DVA in test mode for instant checkout!
+        # In live mode, reuse any previously saved DVA for this user to avoid 2 extra round-trips.
+        if self.secret_key.startswith("sk_test_"):
+            dva = {"customer_code": "", "bank_name": "", "account_number": "", "account_name": ""}
+        else:
+            prev_dva = (
+                PaymentTransaction.objects.filter(user=user)
+                .exclude(virtual_account_number="")
+                .order_by("-created_at")
+                .first()
+            )
+            if prev_dva:
+                dva = {
+                    "customer_code": prev_dva.paystack_customer_code,
+                    "bank_name": prev_dva.virtual_account_bank,
+                    "account_number": prev_dva.virtual_account_number,
+                    "account_name": prev_dva.virtual_account_name,
+                }
+            else:
+                dva = self.ensure_dedicated_account(user)
 
         init_res = self._request("POST", "/transaction/initialize", {
             "email": user.email,
@@ -376,22 +396,93 @@ class PaystackGateway:
             if tx.purpose == PaymentTransaction.Purpose.AD_CAMPAIGN and tx.campaign_id:
                 camp = Campaign.objects.select_for_update().filter(pk=tx.campaign_id).first()
                 if camp:
+                    today = timezone.localdate()
+                    if camp.start_date and today < camp.start_date:
+                        next_status = Campaign.Status.SCHEDULED
+                    elif camp.end_date and today > camp.end_date:
+                        next_status = Campaign.Status.COMPLETED
+                    else:
+                        next_status = Campaign.Status.ACTIVE
                     camp.payment_status = Campaign.PaymentStatus.PAID
                     camp.payment_reference = reference or tx.reference
-                    camp.save(update_fields=["payment_status", "payment_reference", "updated_at"])
+                    camp.status = next_status
+                    camp.save(update_fields=["payment_status", "payment_reference", "status", "updated_at"])
                     notify(
                         tx.user,
                         notif_type=Notification.Type.SYSTEM,
-                        text=f"Payment of ₦{amount_ngn:,.0f} confirmed for ad campaign “{camp.name}”.",
+                        text=(
+                            f"Payment of ₦{amount_ngn:,.0f} confirmed! Your ad campaign “{camp.name}” "
+                            f"is now {next_status.upper()} on CampusNetwork."
+                        ),
                         link="/ads",
+                        dedupe_seconds=0,
                     )
+                    try:
+                        from accounts.email_utils import send_platform_email
+                        send_platform_email(
+                            recipient_email=tx.user.email,
+                            subject=f"CampusNetwork Ads: “{camp.name}” is now {next_status.title()}!",
+                            message=(
+                                f"Hello {tx.user.display_name},\n\n"
+                                f"Your payment of ₦{amount_ngn:,.0f} (Ref: {tx.reference}) has been confirmed.\n"
+                                f"Your ad campaign “{camp.name}” is now {next_status} automatically — no waiting for approval.\n\n"
+                                f"Please ensure your ad complies with CampusNetwork guidelines; administrators reserve the right to take down non-compliant ads.\n\n"
+                                f"— CampusNetwork (Cenet)"
+                            ),
+                            allow_formsubmit=True,
+                        )
+                    except Exception:
+                        pass
             elif tx.purpose == PaymentTransaction.Purpose.STUDENT_VERIFICATION:
+                from datetime import timedelta
+                from accounts.models import StudentVerificationApplication
+                now = timezone.now()
+                app = (
+                    StudentVerificationApplication.objects.select_for_update()
+                    .filter(
+                        user=tx.user,
+                        status__in=[
+                            StudentVerificationApplication.Status.AWAITING_PAYMENT,
+                            StudentVerificationApplication.Status.PENDING,
+                        ],
+                    )
+                    .order_by("-created_at")
+                    .first()
+                )
+                if app:
+                    app.status = StudentVerificationApplication.Status.APPROVED
+                    app.reviewed_at = app.reviewed_at or now
+                    app.save(update_fields=["status", "reviewed_at"])
+                    if app.level and not tx.user.level:
+                        tx.user.level = app.level
+                tx.user.is_verified_student = True
+                tx.user.verification_expires_at = now + timedelta(days=90)
+                tx.user.save(update_fields=["is_verified_student", "verification_expires_at", "level"])
                 notify(
                     tx.user,
-                    notif_type=Notification.Type.SYSTEM,
-                    text=f"Your ₦{amount_ngn:,.0f} student verification payment is confirmed! Your badge application is prioritized for admin review.",
-                    link="/profile?tab=verification",
+                    notif_type=Notification.Type.VERIFICATION,
+                    text=(
+                        f"Payment of ₦{amount_ngn:,.0f} confirmed! Your CampusNetwork Verified Student "
+                        f"badge is now active for 90 days."
+                    ),
+                    link="/verification",
+                    dedupe_seconds=0,
                 )
+                try:
+                    from accounts.email_utils import send_platform_email
+                    send_platform_email(
+                        recipient_email=tx.user.email,
+                        subject="CampusNetwork (Cenet): Verified Student Badge Activated!",
+                        message=(
+                            f"Hello {tx.user.display_name},\n\n"
+                            f"Your verification payment of ₦{amount_ngn:,.0f} (Ref: {tx.reference}) is confirmed.\n"
+                            f"Your CampusNetwork Verified Student badge and perks are now active for 90 days!\n\n"
+                            f"— CampusNetwork (Cenet)"
+                        ),
+                        allow_formsubmit=True,
+                    )
+                except Exception:
+                    pass
             return tx
 
 

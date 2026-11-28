@@ -36,6 +36,42 @@ class UserAdmin(BaseUserAdmin):
             obj.role = User.Role.STAFF
         super().save_model(request, obj, form, change)
 
+    actions = ["suspend_selected_users", "unsuspend_selected_users"]
+
+    @admin.action(description="Suspend selected accounts (notify in-app + email)")
+    def suspend_selected_users(self, request, queryset):
+        from .email_utils import send_platform_email
+        count = 0
+        for u in queryset.exclude(pk=request.user.pk).filter(is_superuser=False):
+            u.is_active = False
+            u.save(update_fields=["is_active"])
+            reason = "Violation of CampusNetwork community guidelines."
+            notify(
+                u,
+                notif_type=Notification.Type.SYSTEM,
+                text=f"Your CampusNetwork account was suspended by an administrator. Reason: {reason}",
+                actor=request.user,
+                link="/profile",
+                dedupe_seconds=0,
+            )
+            send_platform_email(
+                recipient_email=u.email,
+                subject="CampusNetwork (Cenet): Account Suspended",
+                message=(
+                    f"Hello {u.display_name},\n\n"
+                    f"Your CampusNetwork account (@{u.username}) has been suspended by an administrator.\n"
+                    f"Reason: {reason}\n\n— CampusNetwork (Cenet)"
+                ),
+                allow_formsubmit=True,
+            )
+            count += 1
+        self.message_user(request, f"{count} account(s) suspended and notified.", messages.WARNING)
+
+    @admin.action(description="Unsuspend (reinstate) selected accounts")
+    def unsuspend_selected_users(self, request, queryset):
+        n = queryset.update(is_active=True)
+        self.message_user(request, f"{n} account(s) reinstated.", messages.SUCCESS)
+
 
 @admin.register(StaffRating)
 class StaffRatingAdmin(admin.ModelAdmin):
@@ -59,7 +95,46 @@ class StudentVerificationApplicationAdmin(admin.ModelAdmin):
     list_display = ["user", "matric_number", "faculty", "level", "status", "created_at", "reviewed_by"]
     list_filter = ["status", "faculty", "level"]
     search_fields = ["user__username", "user__email", "matric_number"]
-    actions = ["approve_without_payment", "reject_selected"]
+    actions = ["approve_and_request_payment", "approve_without_payment", "reject_selected"]
+
+    @admin.action(description="Approve data & send payment link (in-app + email)")
+    def approve_and_request_payment(self, request, queryset):
+        from django.conf import settings as _settings
+        from .email_utils import send_platform_email
+        frontend_base = (getattr(_settings, "FRONTEND_URL", "") or "https://campusnetwork-sooty.vercel.app").rstrip("/")
+        pay_url = f"{frontend_base}/profile?tab=verification"
+        count = 0
+        for app in queryset:
+            app.status = StudentVerificationApplication.Status.AWAITING_PAYMENT
+            app.reviewed_by = request.user
+            app.reviewed_at = timezone.now()
+            app.payment_link = pay_url
+            app.save()
+            notify(
+                app.user,
+                notif_type=Notification.Type.VERIFICATION,
+                text=(
+                    "Your student verification documents have been approved! "
+                    "Tap here to complete the ₦1,500 payment and activate your Verified Student badge."
+                ),
+                actor=request.user,
+                link="/verification",
+                dedupe_seconds=0,
+            )
+            send_platform_email(
+                recipient_email=app.user.email,
+                subject="CampusNetwork (Cenet): Verification Approved — Complete Payment to Activate",
+                message=(
+                    f"Hello {app.user.display_name},\n\n"
+                    f"Your submitted student verification details have been reviewed and approved!\n\n"
+                    f"Complete your ₦1,500 payment to activate your Verified Student badge:\n{pay_url}\n\n"
+                    f"You can also pay inside the CampusNetwork app under Me -> Student Verification.\n\n"
+                    f"— CampusNetwork (Cenet)"
+                ),
+                allow_formsubmit=True,
+            )
+            count += 1
+        self.message_user(request, f"{count} application(s) approved — payment notification & email sent.", messages.SUCCESS)
 
     @admin.action(description="Approve selected student verification applications (no payment needed)")
     def approve_without_payment(self, request, queryset):

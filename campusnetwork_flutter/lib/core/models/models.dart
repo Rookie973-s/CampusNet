@@ -167,6 +167,12 @@ class QuestionItem {
     this.media = const [],
     this.pollOptions = const [],
     this.pollTotalVotes = 0,
+    this.feedKey = '',
+    this.isCommunityPost = false,
+    this.communityPostId,
+    this.communitySlug = '',
+    this.communityName = '',
+    this.communityAccentColor = '#2563EB',
   });
 
   final int id;
@@ -198,6 +204,14 @@ class QuestionItem {
   final List<QuestionMediaItem> media;
   final List<PollOptionItem> pollOptions;
   final int pollTotalVotes;
+  final String feedKey;
+  final bool isCommunityPost;
+  final int? communityPostId;
+  final String communitySlug;
+  final String communityName;
+  final String communityAccentColor;
+
+  String get uniqueKey => feedKey.isNotEmpty ? feedKey : (isCommunityPost ? 'cp-$id' : 'q-$id');
 
   QuestionItem copyWith({
     int? votes,
@@ -240,6 +254,12 @@ class QuestionItem {
         media: media,
         pollOptions: pollOptions ?? this.pollOptions,
         pollTotalVotes: pollTotalVotes ?? this.pollTotalVotes,
+        feedKey: feedKey,
+        isCommunityPost: isCommunityPost,
+        communityPostId: communityPostId,
+        communitySlug: communitySlug,
+        communityName: communityName,
+        communityAccentColor: communityAccentColor,
       );
 
   factory QuestionItem.fromJson(Map<String, dynamic> j) {
@@ -280,6 +300,12 @@ class QuestionItem {
           .map((o) => PollOptionItem.fromJson(Map<String, dynamic>.from(o)))
           .toList(),
       pollTotalVotes: (j['poll_total_votes'] as num?)?.toInt() ?? 0,
+      feedKey: (j['feed_key'] ?? '').toString(),
+      isCommunityPost: j['is_community_post'] == true,
+      communityPostId: (j['community_post_id'] as num?)?.toInt(),
+      communitySlug: (j['community_slug'] ?? '').toString(),
+      communityName: (j['community_name'] ?? '').toString(),
+      communityAccentColor: (j['community_accent_color'] ?? '#2563EB').toString(),
     );
   }
 }

@@ -3,19 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import UserAvatar from './ui/UserAvatar';
 import VerifiedBadge from './ui/VerifiedBadge';
 import Ic from './Ic';
-import { listQuestions } from '../api/questions';
+import { universalSearch } from '../api/questions';
 import { listStaff } from '../api/staff';
-import { searchUsers } from '../api/users';
-import { listCommunities } from '../api/communities';
 import { tokenStore } from '../api/client';
 
-/* ── LIVE SEARCH DROPDOWN (Questions + Users + SUG + Communities) ── */
+/* ── LIVE SEARCH DROPDOWN (Deep Keyword Search: People + Posts + Comments + Communities + Community Posts + SUG) ── */
 function SearchDropdown({ query, onNavigate, onPickUser, onClose }) {
   const navigate = useNavigate();
   const [qHits, setQHits] = useState([]);
   const [uHits, setUHits] = useState([]);
+  const [commentHits, setCommentHits] = useState([]);
   const [sHits, setSHits] = useState([]);
   const [cHits, setCHits] = useState([]);
+  const [cpHits, setCpHits] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,16 +24,26 @@ function SearchDropdown({ query, onNavigate, onPickUser, onClose }) {
     const signedIn = tokenStore.isLoggedIn();
     const t = setTimeout(() => {
       Promise.all([
-        listQuestions({ search: query }).catch(() => []),
-        searchUsers(query).catch(() => []),
+        universalSearch(query).catch(() => ({ people: [], posts: [], comments: [], communities: [], communityPosts: [] })),
         signedIn ? listStaff({ search: query }).catch(() => []) : Promise.resolve([]),
-        listCommunities({ q: query }).then((r) => r.results).catch(() => []),
-      ]).then(([qs, us, st, cs]) => {
+      ]).then(([res, st]) => {
         if (!alive) return;
-        setQHits(qs.slice(0, 4));
-        setUHits(us.slice(0, 4));
-        setSHits(st.slice(0, 3));
-        setCHits(cs.slice(0, 3));
+        setUHits((res.people || []).slice(0, 4).map((u) => ({
+          id: u.id,
+          username: u.username,
+          name: u.name,
+          av: u.av,
+          bg: u.bg,
+          avatarUrl: u.avatar_url || null,
+          staff: !!u.staff,
+          isVerifiedStudent: !!u.is_verified_student,
+          dept: u.dept || "",
+        })));
+        setQHits((res.posts || []).slice(0, 4));
+        setCommentHits((res.comments || []).slice(0, 3));
+        setCHits((res.communities || []).slice(0, 3));
+        setCpHits((res.communityPosts || []).slice(0, 3));
+        setSHits((st || []).slice(0, 3));
         setLoading(false);
       });
     }, 220);
@@ -51,7 +61,7 @@ function SearchDropdown({ query, onNavigate, onPickUser, onClose }) {
     );
   }
 
-  if (!qHits.length && !uHits.length && !sHits.length && !cHits.length) {
+  if (!qHits.length && !uHits.length && !commentHits.length && !sHits.length && !cHits.length && !cpHits.length) {
     return (
       <div className="sch-drop" onMouseDown={keepFocus} style={{ padding: "18px", textAlign: "center", color: "var(--faint)", fontSize: 13 }}>
         No results for "<strong style={{ color: "var(--txt)" }}>{query}</strong>"
@@ -60,7 +70,7 @@ function SearchDropdown({ query, onNavigate, onPickUser, onClose }) {
   }
 
   return (
-    <div className="sch-drop" onMouseDown={keepFocus} style={{ maxHeight: "70vh", overflowY: "auto" }}>
+    <div className="sch-drop" onMouseDown={keepFocus} style={{ maxHeight: "72vh", overflowY: "auto" }}>
       {uHits.length > 0 && (
         <>
           <div className="sch-sec">People</div>
@@ -107,8 +117,33 @@ function SearchDropdown({ query, onNavigate, onPickUser, onClose }) {
                 <Ic n="msg" s={14} />
               </span>
               <div style={{ minWidth: 0 }}>
-                <div className="sch-title">{q.title}</div>
+                <div className="sch-title">{q.title || q.body?.slice(0, 90)}</div>
                 <div className="sch-sub">{q.dept} · {q.time}</div>
+              </div>
+            </button>
+          ))}
+        </>
+      )}
+
+      {commentHits.length > 0 && (
+        <>
+          <div className="sch-sec">Matching Comments</div>
+          {commentHits.map((cm) => (
+            <button
+              key={`cm-${cm.id}`}
+              type="button"
+              className="sch-row"
+              onClick={() => {
+                navigate(`/q/${cm.question_public_id || cm.question_id}`);
+                onClose();
+              }}
+            >
+              <span style={{ marginTop: 2, flexShrink: 0, color: "#10B981" }}>
+                <Ic n="msg" s={14} />
+              </span>
+              <div style={{ minWidth: 0 }}>
+                <div className="sch-title">{cm.body}</div>
+                <div className="sch-sub">Comment by @{cm.author?.username || "student"} · on {cm.question_title}</div>
               </div>
             </button>
           ))}
@@ -134,6 +169,31 @@ function SearchDropdown({ query, onNavigate, onPickUser, onClose }) {
               <div style={{ minWidth: 0 }}>
                 <div className="sch-title">{c.name}</div>
                 <div className="sch-sub">{c.category} · {c.followers_count} followers</div>
+              </div>
+            </button>
+          ))}
+        </>
+      )}
+
+      {cpHits.length > 0 && (
+        <>
+          <div className="sch-sec">Community Posts</div>
+          {cpHits.map((cp) => (
+            <button
+              key={`cp-${cp.id}`}
+              type="button"
+              className="sch-row"
+              onClick={() => {
+                navigate(`/communities/${cp.community_slug}`);
+                onClose();
+              }}
+            >
+              <span style={{ marginTop: 2, flexShrink: 0, color: "#8B5CF6" }}>
+                <Ic n="users" s={14} />
+              </span>
+              <div style={{ minWidth: 0 }}>
+                <div className="sch-title">{cp.title || cp.body?.slice(0, 90)}</div>
+                <div className="sch-sub">In {cp.community_name}</div>
               </div>
             </button>
           ))}
@@ -172,7 +232,7 @@ function SearchDropdown({ query, onNavigate, onPickUser, onClose }) {
           }}
           style={{ fontSize: 12, color: "var(--accent)", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}
         >
-          Search all results for “{query}” →
+          Search all discussions for “{query}” →
         </button>
       </div>
     </div>

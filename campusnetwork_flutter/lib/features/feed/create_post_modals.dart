@@ -123,10 +123,11 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
 
   Future<void> _submit(List<DepartmentItem> depts, int wordLimit) async {
     final cleanBody = _body.text.trim();
-    final cleanTitle = _title.text.trim().isNotEmpty
-        ? _title.text.trim()
-        : (cleanBody.length > 70 ? cleanBody.substring(0, 70) : cleanBody);
-    if (cleanTitle.isEmpty) return;
+    final cleanTitle = _title.text.trim();
+    if (cleanBody.isEmpty && cleanTitle.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please write your post before publishing.')));
+      return;
+    }
     if (_words > wordLimit) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exceeds your $wordLimit-word limit.')));
       return;
@@ -215,7 +216,12 @@ class _AskNetworkSheetState extends ConsumerState<_AskNetworkSheet> {
               const SizedBox(height: 16),
               Text('Headline (optional)', style: TextStyle(color: cn.textMuted, fontWeight: FontWeight.w700, fontSize: 12.5)),
               const SizedBox(height: 6),
-              _InputBox(controller: _title, hint: 'Short summary of your question or post...', icon: Icons.title_rounded),
+              _InputBox(controller: _title, hint: 'Leave blank or add a catchy headline...', icon: Icons.title_rounded),
+              const SizedBox(height: 5),
+              Text(
+                'Tip: Adding a headline gives your post a much better chance of being seen & discovered. Leave blank to lead directly with your main text.',
+                style: TextStyle(color: cn.textFaint, fontSize: 11.5, height: 1.35),
+              ),
               const SizedBox(height: 12),
               Text('Your question', style: TextStyle(color: cn.textMuted, fontWeight: FontWeight.w700, fontSize: 12.5)),
               const SizedBox(height: 6),

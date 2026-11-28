@@ -45,18 +45,30 @@ class ApiError extends Error {
   }
 }
 
+/** Sanitize any raw backend URL / technical error so users never see server hostnames or stack traces. */
+function sanitizeErrorText(msg, fallback) {
+  if (!msg || typeof msg !== "string") return fallback;
+  const trimmed = msg.trim();
+  if (
+    /onrender\.com|https?:\/\/|failed to fetch|networkerror|load failed|err_connection|econnrefused|traceback|<!doctype|<html/i.test(trimmed)
+  ) {
+    return fallback;
+  }
+  return trimmed.length > 220 ? `${trimmed.slice(0, 217)}…` : trimmed;
+}
+
 /** Pulls the friendliest possible message out of a DRF error payload. */
 function extractMessage(data, fallback) {
   if (!data) return fallback;
-  if (typeof data === "string") return data;
-  if (data.detail) return data.detail;
+  if (typeof data === "string") return sanitizeErrorText(data, fallback);
+  if (data.detail) return sanitizeErrorText(String(data.detail), fallback);
   // DRF validation errors: {"field": ["msg", ...]} — surface the first one.
   const firstKey = Object.keys(data)[0];
   if (firstKey) {
     const val = data[firstKey];
     const msg = Array.isArray(val) ? val[0] : val;
     if (typeof msg === "string") {
-      return firstKey === "non_field_errors" ? msg : `${firstKey}: ${msg}`;
+      return sanitizeErrorText(firstKey === "non_field_errors" ? msg : `${firstKey}: ${msg}`, fallback);
     }
   }
   return fallback;
@@ -109,11 +121,16 @@ export async function apiRequest(path, opts = {}) {
   const access = tokenStore.getAccess();
   if (access) headers["Authorization"] = `Bearer ${access}`;
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
-  });
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiError("No internet connection. Please check your network and try again.", 0, null);
+  }
 
   // Access token expired — try one silent refresh + retry.
   if (res.status === 401 && !_retried && tokenStore.getRefresh()) {
@@ -134,7 +151,11 @@ export async function apiRequest(path, opts = {}) {
   }
 
   if (!res.ok) {
-    throw new ApiError(extractMessage(data, `Request failed (${res.status})`), res.status, data);
+    const defaultMsg =
+      res.status >= 500
+        ? "Something went wrong on our end. Please try again in a moment."
+        : `Request failed (${res.status})`;
+    throw new ApiError(extractMessage(data, defaultMsg), res.status, data);
   }
   return data;
 }

@@ -636,8 +636,24 @@ class StudentVerificationApplyView(APIView):
         if is_active:
             return Response({"detail": "Your account is already student-verified."}, status=400)
         if StudentVerificationApplication.objects.filter(
-            user=user, status=StudentVerificationApplication.Status.PENDING
+            user=user,
+            status__in=[
+                StudentVerificationApplication.Status.PENDING,
+                StudentVerificationApplication.Status.AWAITING_PAYMENT,
+            ],
         ).exists():
+            existing_app = StudentVerificationApplication.objects.filter(
+                user=user,
+                status__in=[
+                    StudentVerificationApplication.Status.PENDING,
+                    StudentVerificationApplication.Status.AWAITING_PAYMENT,
+                ],
+            ).first()
+            if existing_app and existing_app.status == StudentVerificationApplication.Status.AWAITING_PAYMENT:
+                return Response(
+                    {"detail": "Your verification details are already approved! Complete the ₦1,500 payment to activate your badge."},
+                    status=400,
+                )
             return Response({"detail": "You already have a verification application pending review."}, status=400)
 
         prev_with_doc = StudentVerificationApplication.objects.filter(
@@ -645,13 +661,8 @@ class StudentVerificationApplyView(APIView):
         ).exclude(supporting_document="").order_by("-created_at").first()
         is_renewal = bool(user.is_verified_student and user.verification_expires_at and now >= user.verification_expires_at and prev_with_doc)
 
-        # Enforce ₦1,500 Paystack payment unless admin or Paystack is not configured (local test mode)
-        from advertising.payments import get_payment_gateway
-        if not is_admin_or_mod(user) and get_payment_gateway().is_enabled() and not _has_paid_verification(user):
-            return Response(
-                {"detail": "Please complete the ₦1,500 Paystack verification payment before submitting your application."},
-                status=402,
-            )
+        # Approve-first, pay-after flow: users submit their documents FIRST without upfront payment.
+        # Once admin approves the collected data, the user is notified (in-app + email) with the payment button/link.
 
         ser = StudentVerificationApplicationSerializer(data=request.data, context={"request": request})
         ser.is_valid(raise_exception=True)
@@ -728,38 +739,84 @@ class StudentVerificationDecisionView(APIView):
         payment_link = (request.data.get("payment_link") or "").strip()
 
         if decision == "approve":
-            app.status = StudentVerificationApplication.Status.APPROVED
-            app.reviewed_by = request.user
-            app.reviewed_at = timezone.now()
-            app.review_note = note
-            if payment_link:
-                app.payment_link = payment_link
-            app.save()
-            app.user.is_verified_student = True
-            app.user.verification_expires_at = timezone.now() + timedelta(days=90)
-            if app.level and not app.user.level:
-                app.user.level = app.level
-            app.user.save()
-            notify(
-                app.user,
-                notif_type=Notification.Type.VERIFICATION,
-                text="Congratulations! Your CampusNetwork Student Verification badge is now active.",
-                actor=request.user,
-                link="/profile",
-                dedupe_seconds=0,
+            from django.conf import settings as _settings
+            from advertising.payments import get_payment_gateway
+
+            grant_free = str(request.data.get("grant_free", "")).lower() in ("1", "true", "yes")
+            frontend_base = (getattr(_settings, "FRONTEND_URL", "") or "https://campusnetwork-sooty.vercel.app").rstrip("/")
+            pay_url = payment_link or f"{frontend_base}/profile?tab=verification"
+
+            needs_payment = (
+                not grant_free
+                and not is_admin_or_mod(app.user)
+                and get_payment_gateway().is_enabled()
+                and not _has_paid_verification(app.user)
             )
-            send_platform_email(
-                recipient_email=app.user.email,
-                subject="CampusNetwork (Cenet): Student Verification Approved",
-                message=(
-                    f"Hello {app.user.display_name},\n\n"
-                    f"Your student verification has been approved! Your verified student badge and perks are now active."
-                    + (f"\n\nPayment / Receipt Link: {payment_link}" if payment_link else "")
-                    + (f"\nNote: {note}" if note else "")
-                    + "\n\n— CampusNetwork (Cenet)"
-                ),
-                allow_formsubmit=True,
-            )
+            if needs_payment:
+                app.status = StudentVerificationApplication.Status.AWAITING_PAYMENT
+                app.reviewed_by = request.user
+                app.reviewed_at = timezone.now()
+                app.review_note = note
+                app.payment_link = pay_url
+                app.save()
+                notify(
+                    app.user,
+                    notif_type=Notification.Type.VERIFICATION,
+                    text=(
+                        "Your student verification documents have been approved! "
+                        "Tap here to complete the ₦1,500 payment and activate your Verified Student badge."
+                    ),
+                    actor=request.user,
+                    link="/verification",
+                    dedupe_seconds=0,
+                )
+                send_platform_email(
+                    recipient_email=app.user.email,
+                    subject="CampusNetwork (Cenet): Verification Approved — Complete Payment to Activate",
+                    message=(
+                        f"Hello {app.user.display_name},\n\n"
+                        f"Great news! Your submitted student verification details have been reviewed and approved.\n\n"
+                        f"To activate your Verified Student badge (valid for 90 days), please complete the ₦1,500 verification fee:\n"
+                        f"{pay_url}\n\n"
+                        f"You can also open the CampusNetwork mobile app -> Me -> Student Verification and tap 'Pay ₦1,500 with Paystack'.\n"
+                        + (f"\nReviewer Note: {note}\n" if note else "")
+                        + "\n— CampusNetwork (Cenet)"
+                    ),
+                    allow_formsubmit=True,
+                )
+            else:
+                app.status = StudentVerificationApplication.Status.APPROVED
+                app.reviewed_by = request.user
+                app.reviewed_at = timezone.now()
+                app.review_note = note
+                if payment_link:
+                    app.payment_link = payment_link
+                app.save()
+                app.user.is_verified_student = True
+                app.user.verification_expires_at = timezone.now() + timedelta(days=90)
+                if app.level and not app.user.level:
+                    app.user.level = app.level
+                app.user.save()
+                notify(
+                    app.user,
+                    notif_type=Notification.Type.VERIFICATION,
+                    text="Congratulations! Your CampusNetwork Student Verification badge is now active.",
+                    actor=request.user,
+                    link="/verification",
+                    dedupe_seconds=0,
+                )
+                send_platform_email(
+                    recipient_email=app.user.email,
+                    subject="CampusNetwork (Cenet): Student Verification Approved",
+                    message=(
+                        f"Hello {app.user.display_name},\n\n"
+                        f"Your student verification has been approved! Your verified student badge and perks are now active."
+                        + (f"\n\nPayment / Receipt Link: {payment_link}" if payment_link else "")
+                        + (f"\nNote: {note}" if note else "")
+                        + "\n\n— CampusNetwork (Cenet)"
+                    ),
+                    allow_formsubmit=True,
+                )
         elif decision == "reject":
             app.status = StudentVerificationApplication.Status.REJECTED
             app.reviewed_by = request.user
@@ -811,6 +868,90 @@ class StudentVerificationDecisionView(APIView):
             return Response({"detail": "Invalid decision."}, status=400)
 
         return Response(StudentVerificationApplicationSerializer(app, context={"request": request}).data)
+
+
+class UserSuspendView(APIView):
+    """POST /api/users/<id>/suspend/ — Admin moderation: suspend or unsuspend an account with reason + app & email notifications."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        if not is_admin_or_mod(request.user):
+            return Response({"detail": "Administrator access required."}, status=403)
+        target = get_object_or_404(User, pk=pk)
+        if target.pk == request.user.pk or target.is_superuser:
+            return Response({"detail": "Cannot suspend this administrator account."}, status=400)
+        act = (request.data.get("action") or "suspend").strip().lower()
+        reason = (request.data.get("reason") or "").strip()
+
+        from advertising.models import AuditLog
+        from config.security import hash_ip
+
+        if act == "unsuspend":
+            target.is_active = True
+            target.save(update_fields=["is_active"])
+            AuditLog.objects.create(
+                actor=request.user,
+                action="user.unsuspended",
+                target_type="user",
+                target_id=str(target.pk),
+                metadata={"reason": reason},
+                ip_hash=hash_ip(request),
+            )
+            notify(
+                target,
+                notif_type=Notification.Type.SYSTEM,
+                text="Your CampusNetwork account has been reinstated by an administrator.",
+                actor=request.user,
+                link="/feed",
+                dedupe_seconds=0,
+            )
+            send_platform_email(
+                recipient_email=target.email,
+                subject="CampusNetwork (Cenet): Account Reinstated",
+                message=(
+                    f"Hello {target.display_name},\n\n"
+                    f"Your CampusNetwork account (@{target.username}) has been reinstated and you can sign in again."
+                    + (f"\nNote: {reason}" if reason else "")
+                    + "\n\n— CampusNetwork (Cenet)"
+                ),
+                allow_formsubmit=True,
+            )
+            return Response({"detail": "Account reinstated.", "is_active": True})
+
+        if len(reason) < 5:
+            return Response({"detail": "Please provide a clear reason for suspending this account."}, status=400)
+        target.is_active = False
+        target.save(update_fields=["is_active"])
+        AuditLog.objects.create(
+            actor=request.user,
+            action="user.suspended",
+            target_type="user",
+            target_id=str(target.pk),
+            metadata={"reason": reason},
+            ip_hash=hash_ip(request),
+        )
+        notify(
+            target,
+            notif_type=Notification.Type.SYSTEM,
+            text=f"Your CampusNetwork account was suspended by an administrator. Reason: {reason[:160]}",
+            actor=request.user,
+            link="/profile",
+            dedupe_seconds=0,
+        )
+        send_platform_email(
+            recipient_email=target.email,
+            subject="CampusNetwork (Cenet): Account Suspended",
+            message=(
+                f"Hello {target.display_name},\n\n"
+                f"Your CampusNetwork account (@{target.username}) has been suspended by an administrator.\n\n"
+                f"Reason: {reason}\n\n"
+                f"If you believe this was a mistake, please contact CampusNetwork Support.\n\n"
+                f"— CampusNetwork (Cenet)"
+            ),
+            allow_formsubmit=True,
+        )
+        return Response({"detail": "Account suspended and user notified.", "is_active": False, "reason": reason})
 
 
 class ActivityView(APIView):

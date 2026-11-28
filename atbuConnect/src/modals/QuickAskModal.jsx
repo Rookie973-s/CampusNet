@@ -126,7 +126,7 @@ function QuickAskModal({ onClose, user, onLogin, toast, onPosted, editingQuestio
       const chosen = depts.find((d) => d.name === dept);
       const htmlBody = markupToHtml(q.trim());
       const tagArr = tags.split(",").map((x) => x.trim()).filter(Boolean);
-      const finalTitle = (title.trim() || plainBody.slice(0, 120));
+      const finalTitle = title.trim();
 
       let saved;
       if (isEdit) {
@@ -196,7 +196,10 @@ function QuickAskModal({ onClose, user, onLogin, toast, onPosted, editingQuestio
 
           <div>
             <label htmlFor="paper-title-inp" className="paper-label">Headline (optional)</label>
-            <input id="paper-title-inp" className="inp" style={{ height: 42 }} value={title} onChange={(e) => setTitle(e.target.value)} disabled={busy} placeholder="Short summary of your question or post…" maxLength={240} />
+            <input id="paper-title-inp" className="inp" style={{ height: 42 }} value={title} onChange={(e) => setTitle(e.target.value)} disabled={busy} placeholder="Leave blank or add a catchy headline…" maxLength={240} />
+            <p style={{ fontSize: 12, color: "var(--mut)", marginTop: 5 }}>
+              Tip: Adding a headline gives your post a much better chance of being seen &amp; discovered. Leave it blank to lead directly with your main text.
+            </p>
           </div>
 
           <div>

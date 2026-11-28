@@ -30,7 +30,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   String? _error;
   List<CNUser> _people = const [];
   List<QuestionItem> _posts = const [];
+  List<Map<String, dynamic>> _comments = const [];
   List<Map<String, dynamic>> _communities = const [];
+  List<Map<String, dynamic>> _communityPosts = const [];
+  List<Map<String, dynamic>> _communityComments = const [];
   int _seq = 0;
 
   @override
@@ -57,11 +60,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         _loading = false;
         _people = const [];
         _posts = const [];
+        _comments = const [];
         _communities = const [];
+        _communityPosts = const [];
+        _communityComments = const [];
       });
       return;
     }
-    _debounce = Timer(const Duration(milliseconds: 350), () => _runSearch(q));
+    _debounce = Timer(const Duration(milliseconds: 300), () => _runSearch(q));
   }
 
   Future<void> _runSearch(String q) async {
@@ -72,19 +78,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     });
     final api = ref.read(apiClientProvider);
     try {
-      final res = await Future.wait([
-        api.dio.get('/users/search/', queryParameters: {'q': q.replaceFirst('@', '')}),
-        api.dio.get('/questions/', queryParameters: {'search': q}),
-        api.dio.get('/communities/', queryParameters: {'q': q}),
-      ]);
+      final res = await api.dio.get('/search/', queryParameters: {'q': q.replaceFirst('@', '')});
       if (reqId != _seq || !mounted) return;
-      final uRaw = res[0].data is List ? res[0].data as List : (res[0].data['results'] as List? ?? []);
-      final pRaw = res[1].data is List ? res[1].data as List : (res[1].data['results'] as List? ?? []);
-      final cRaw = res[2].data is List ? res[2].data as List : (res[2].data['results'] as List? ?? []);
+      final data = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+      final uRaw = data['people'] as List? ?? [];
+      final pRaw = data['posts'] as List? ?? [];
+      final cmRaw = data['comments'] as List? ?? [];
+      final cRaw = data['communities'] as List? ?? [];
+      final cpRaw = data['community_posts'] as List? ?? [];
+      final ccRaw = data['community_comments'] as List? ?? [];
       setState(() {
         _people = uRaw.whereType<Map>().map((e) => CNUser.fromJson(Map<String, dynamic>.from(e))).toList();
         _posts = pRaw.whereType<Map>().map((e) => QuestionItem.fromJson(Map<String, dynamic>.from(e))).toList();
+        _comments = cmRaw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
         _communities = cRaw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+        _communityPosts = cpRaw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+        _communityComments = ccRaw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
         _loading = false;
       });
     } catch (e) {
@@ -247,16 +256,106 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(p.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w800, color: c.textPrimary)),
+                                  Text(
+                                    p.title.isNotEmpty ? p.title : p.body,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(fontWeight: FontWeight.w800, color: c.textPrimary),
+                                  ),
                                   const SizedBox(height: 4),
-                                  Text('${p.authorName} · ${p.dept} · ${p.ans} answers', style: TextStyle(color: c.textSecondary, fontSize: 12)),
+                                  Text('${p.authorName} · ${p.dept} · ${p.ans} comments', style: TextStyle(color: c.textSecondary, fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (_comments.isNotEmpty) ...[
+                      Text('MATCHING COMMENTS', style: TextStyle(color: c.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
+                      const SizedBox(height: 8),
+                      for (final cm in _comments.take(8))
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: LiquidTap(
+                            onTap: () => context.push('/question/${cm['question_public_id'] ?? cm['question_id']}'),
+                            child: MorphismCard(
+                              padding: const EdgeInsets.all(13),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text((cm['body'] ?? '').toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, color: c.textPrimary)),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Comment by @${(cm['author'] is Map ? cm['author']['username'] : '') ?? 'student'} · ${(cm['question_title'] ?? '').toString()}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(color: c.textSecondary, fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (_communityPosts.isNotEmpty) ...[
+                      Text('COMMUNITY POSTS', style: TextStyle(color: c.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
+                      const SizedBox(height: 8),
+                      for (final cp in _communityPosts.take(8))
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: LiquidTap(
+                            onTap: () => context.push('/community/${cp['community_slug']}'),
+                            child: MorphismCard(
+                              padding: const EdgeInsets.all(13),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    ((cp['title'] ?? '').toString().isNotEmpty ? cp['title'] : cp['body']).toString(),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(fontWeight: FontWeight.w800, color: c.textPrimary),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text('In ${cp['community_name'] ?? 'Community'}', style: TextStyle(color: c.accent, fontSize: 12, fontWeight: FontWeight.w700)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (_communityComments.isNotEmpty) ...[
+                      Text('COMMUNITY COMMENTS', style: TextStyle(color: c.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
+                      const SizedBox(height: 8),
+                      for (final cc in _communityComments.take(6))
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: LiquidTap(
+                            onTap: () => context.push('/community/${cc['community_slug']}'),
+                            child: MorphismCard(
+                              padding: const EdgeInsets.all(13),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text((cc['body'] ?? '').toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, color: c.textPrimary)),
+                                  const SizedBox(height: 4),
+                                  Text('In ${cc['community_name'] ?? 'Community'}', style: TextStyle(color: c.textSecondary, fontSize: 12)),
                                 ],
                               ),
                             ),
                           ),
                         ),
                     ],
-                    if (_ctrl.text.trim().length >= 2 && _people.isEmpty && _posts.isEmpty && _communities.isEmpty)
+                    if (_ctrl.text.trim().length >= 2 &&
+                        _people.isEmpty &&
+                        _posts.isEmpty &&
+                        _comments.isEmpty &&
+                        _communities.isEmpty &&
+                        _communityPosts.isEmpty &&
+                        _communityComments.isEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 48),
                         child: Center(child: Text('No results found for "${_ctrl.text.trim()}"', style: TextStyle(color: c.textSecondary))),

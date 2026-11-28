@@ -207,7 +207,10 @@ class FeedNotifier extends StateNotifier<FeedState> {
   Future<void> toggleLike(QuestionItem q) async {
     _replace(q.copyWith(liked: !q.liked, likes: (q.likes + (q.liked ? -1 : 1)).clamp(0, 999999)));
     try {
-      final res = await _api.dio.post('/questions/${q.id}/like/');
+      final path = q.isCommunityPost
+          ? '/community-posts/${q.communityPostId ?? q.id}/like/'
+          : '/questions/${q.id}/like/';
+      final res = await _api.dio.post(path);
       _replace(q.copyWith(
         liked: res.data['liked'] == true,
         likes: (res.data['likes'] as num?)?.toInt() ?? q.likes,
@@ -258,7 +261,9 @@ class FeedNotifier extends StateNotifier<FeedState> {
   }
 
   void _replace(QuestionItem updated) {
-    state = state.copyWith(items: state.items.map((x) => x.id == updated.id ? updated : x).toList());
+    state = state.copyWith(
+      items: state.items.map((x) => x.uniqueKey == updated.uniqueKey ? updated : x).toList(),
+    );
   }
 }
 
@@ -343,13 +348,15 @@ class FeedScreen extends ConsumerWidget {
                         value: feed.topic,
                         onChanged: (v) => ref.read(feedProvider.notifier).load(topic: v),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 6),
                       SizedBox(
-                        height: 36,
+                        height: 54,
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
+                          clipBehavior: Clip.none,
+                          padding: const EdgeInsets.symmetric(vertical: 7),
                           itemCount: _kFeedFilters.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 8),
+                          separatorBuilder: (_, __) => const SizedBox(width: 10),
                           itemBuilder: (_, i) {
                             final f = _kFeedFilters[i];
                             final active = feed.filter == f;
@@ -357,7 +364,8 @@ class FeedScreen extends ConsumerWidget {
                               onTap: () => ref.read(feedProvider.notifier).load(filter: f),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 180),
-                                padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 7),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                alignment: Alignment.center,
                                 decoration: ClayDecorations.pill(context, active: active),
                                 child: Text(
                                   f,
@@ -556,6 +564,37 @@ class PostTile extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (q.isCommunityPost && q.communityName.isNotEmpty) ...[
+            LiquidTap(
+              onTap: () => context.push('/community/${q.communitySlug}'),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: hexToColor(q.communityAccentColor, fallback: c.accent).withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: hexToColor(q.communityAccentColor, fallback: c.accent).withValues(alpha: 0.35)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.groups_rounded, size: 13, color: hexToColor(q.communityAccentColor, fallback: c.accent)),
+                    const SizedBox(width: 5),
+                    Text(
+                      'From ${q.communityName}',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        color: hexToColor(q.communityAccentColor, fallback: c.accent),
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(Icons.chevron_right_rounded, size: 14, color: hexToColor(q.communityAccentColor, fallback: c.accent)),
+                  ],
+                ),
+              ),
+            ),
+          ],
           // Header: Globally clickable UserIdentity + 3-Dot Menu
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -574,14 +613,15 @@ class PostTile extends ConsumerWidget {
                   subtitle: '${q.dept} · ${q.time}',
                 ),
               ),
-              LiquidTap(
-                onTap: () => _openThreeDotMenu(context, ref),
-                child: SizedBox(
-                  width: 36,
-                  height: 36,
-                  child: Icon(Icons.more_horiz_rounded, size: 20, color: c.textSecondary),
+              if (!q.isCommunityPost)
+                LiquidTap(
+                  onTap: () => _openThreeDotMenu(context, ref),
+                  child: SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: Icon(Icons.more_horiz_rounded, size: 20, color: c.textSecondary),
+                  ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -589,19 +629,23 @@ class PostTile extends ConsumerWidget {
           // Body + Media (NO card border, NO divider above actions!)
           GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => context.push('/question/${q.publicId}', extra: q),
+            onTap: () => q.isCommunityPost
+                ? context.push('/community/${q.communitySlug}')
+                : context.push('/question/${q.publicId}', extra: q),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (q.title.isNotEmpty)
                   RichMentionText(q.title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, height: 1.3, color: c.textPrimary)),
                 if (q.body.isNotEmpty && q.body != q.title) ...[
-                  const SizedBox(height: 4),
+                  if (q.title.isNotEmpty) const SizedBox(height: 4),
                   RichMentionText(
                     q.body,
                     maxLines: 5,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: c.textPrimary.withValues(alpha: 0.9), fontSize: 14.5, height: 1.45),
+                    style: q.title.isEmpty
+                        ? TextStyle(color: c.textPrimary, fontSize: 15.5, fontWeight: FontWeight.w700, height: 1.45)
+                        : TextStyle(color: c.textPrimary.withValues(alpha: 0.9), fontSize: 14.5, height: 1.45),
                   ),
                 ],
                 if (q.tags.isNotEmpty) ...[
@@ -682,32 +726,36 @@ class PostTile extends ConsumerWidget {
           // Compact Pill Action Row (exact FEEDS reference — NO white divider above!)
           Row(
             children: [
-              // Upvote / Score / Downvote clay pill
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                decoration: ClayDecorations.pill(context),
-                child: Row(
-                  children: [
-                    LiquidTap(
-                      onTap: () => user == null ? onRequireAuth() : ref.read(feedProvider.notifier).toggleVote(q, 'up'),
-                      child: Icon(Icons.keyboard_arrow_up_rounded, size: 19, color: q.voted == 'up' ? c.accent : c.textSecondary),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Text('${q.votes}', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: q.voted != null ? c.accent : c.textPrimary)),
-                    ),
-                    LiquidTap(
-                      onTap: () => user == null ? onRequireAuth() : ref.read(feedProvider.notifier).toggleVote(q, 'down'),
-                      child: Icon(Icons.keyboard_arrow_down_rounded, size: 19, color: q.voted == 'down' ? c.danger : c.textSecondary),
-                    ),
-                  ],
+              if (!q.isCommunityPost) ...[
+                // Upvote / Score / Downvote clay pill
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: ClayDecorations.pill(context),
+                  child: Row(
+                    children: [
+                      LiquidTap(
+                        onTap: () => user == null ? onRequireAuth() : ref.read(feedProvider.notifier).toggleVote(q, 'up'),
+                        child: Icon(Icons.keyboard_arrow_up_rounded, size: 19, color: q.voted == 'up' ? c.accent : c.textSecondary),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Text('${q.votes}', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: q.voted != null ? c.accent : c.textPrimary)),
+                      ),
+                      LiquidTap(
+                        onTap: () => user == null ? onRequireAuth() : ref.read(feedProvider.notifier).toggleVote(q, 'down'),
+                        child: Icon(Icons.keyboard_arrow_down_rounded, size: 19, color: q.voted == 'down' ? c.danger : c.textSecondary),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
+                const SizedBox(width: 8),
+              ],
 
               // Comments clay pill
               LiquidTap(
-                onTap: () => context.push('/question/${q.publicId}', extra: q),
+                onTap: () => q.isCommunityPost
+                    ? context.push('/community/${q.communitySlug}')
+                    : context.push('/question/${q.publicId}', extra: q),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: ClayDecorations.pill(context),
@@ -725,7 +773,7 @@ class PostTile extends ConsumerWidget {
               // Like clay pill
               LiquidTap(
                 onTap: () => user == null ? onRequireAuth() : ref.read(feedProvider.notifier).toggleLike(q),
-                onLongPress: isAuthor ? () => _showAnalyticsModal(context, ref) : null,
+                onLongPress: (isAuthor && !q.isCommunityPost) ? () => _showAnalyticsModal(context, ref) : null,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: q.liked
@@ -744,7 +792,11 @@ class PostTile extends ConsumerWidget {
 
               // Share clay pill
               LiquidTap(
-                onTap: () => showRadialShareFan(context, title: q.title, url: '$kWebOrigin/q/${q.publicId}'),
+                onTap: () => showRadialShareFan(
+                  context,
+                  title: q.title.isNotEmpty ? q.title : q.body,
+                  url: q.isCommunityPost ? '$kWebOrigin/communities/${q.communitySlug}' : '$kWebOrigin/q/${q.publicId}',
+                ),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
                   decoration: ClayDecorations.pill(context),
@@ -753,14 +805,15 @@ class PostTile extends ConsumerWidget {
               ),
               const Spacer(),
 
-              // Bookmark
-              LiquidTap(
-                onTap: () => user == null ? onRequireAuth() : ref.read(feedProvider.notifier).toggleBookmark(q),
-                child: Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: Icon(q.saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded, size: 19, color: q.saved ? c.gold : c.textSecondary),
+              if (!q.isCommunityPost)
+                // Bookmark
+                LiquidTap(
+                  onTap: () => user == null ? onRequireAuth() : ref.read(feedProvider.notifier).toggleBookmark(q),
+                  child: Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: Icon(q.saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded, size: 19, color: q.saved ? c.gold : c.textSecondary),
+                  ),
                 ),
-              ),
             ],
           ),
         ],

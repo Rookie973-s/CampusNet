@@ -60,7 +60,7 @@ class CampaignViewSet(viewsets.ModelViewSet):
             return qs
         if is_admin_or_mod(u) and (
             self.request.query_params.get("all") == "1"
-            or self.action in ("approve", "reject", "retrieve", "pause")
+            or self.action in ("approve", "reject", "takedown", "retrieve", "pause")
         ):
             status_f = self.request.query_params.get("status")
             if status_f in dict(Campaign.Status.choices):
@@ -115,8 +115,8 @@ class CampaignViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Not authorized."}, status=403)
         if camp.status != Campaign.Status.PAUSED:
             return Response({"detail": "Only paused campaigns can be resumed."}, status=400)
-        if not camp.reviewed_by_id:
-            return Response({"detail": "Campaign must be approved by an administrator first."}, status=400)
+        if not camp.reviewed_by_id and camp.payment_status != Campaign.PaymentStatus.PAID:
+            return Response({"detail": "Campaign must be paid or approved before resuming."}, status=400)
         today = timezone.localdate()
         if today > camp.end_date:
             camp.status = Campaign.Status.COMPLETED
@@ -173,6 +173,55 @@ class CampaignViewSet(viewsets.ModelViewSet):
             actor=request.user,
             link="/ads",
         )
+        return Response(CampaignSerializer(camp, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def takedown(self, request, pk=None):
+        """POST /api/ads/<id>/takedown/ — Admin moderation takedown with in-app + email notification."""
+        if not is_admin_or_mod(request.user):
+            return Response({"detail": "Only administrators can take down ad campaigns."}, status=403)
+        camp = self.get_object()
+        reason = (request.data.get("reason") or request.data.get("note") or "").strip()
+        if len(reason) < 5:
+            return Response({"detail": "Please provide a clear reason for taking down this ad."}, status=400)
+        camp.status = Campaign.Status.REJECTED
+        camp.reviewed_by = request.user
+        camp.reviewed_at = timezone.now()
+        camp.review_note = reason
+        camp.save(update_fields=["status", "reviewed_by", "reviewed_at", "review_note", "updated_at"])
+        from .models import AuditLog
+        AuditLog.objects.create(
+            actor=request.user,
+            action="ad.takedown",
+            target_type="campaign",
+            target_id=str(camp.pk),
+            metadata={"name": camp.name, "reason": reason},
+            ip_hash=hash_ip(request),
+        )
+        notify(
+            camp.advertiser,
+            notif_type=Notification.Type.SYSTEM,
+            text=f"Your ad campaign “{camp.name}” was taken down by an administrator. Reason: {reason[:160]}",
+            actor=request.user,
+            link="/ads",
+            dedupe_seconds=0,
+        )
+        try:
+            from accounts.email_utils import send_platform_email
+            send_platform_email(
+                recipient_email=camp.advertiser.email,
+                subject=f"CampusNetwork Ads: Campaign “{camp.name}” Taken Down",
+                message=(
+                    f"Hello {camp.advertiser.display_name},\n\n"
+                    f"Your ad campaign “{camp.name}” was taken down by a CampusNetwork administrator for policy non-compliance.\n\n"
+                    f"Reason: {reason}\n\n"
+                    f"If you have questions or wish to edit your creative to comply, please review CampusNetwork ad guidelines.\n\n"
+                    f"— CampusNetwork (Cenet)"
+                ),
+                allow_formsubmit=True,
+            )
+        except Exception:
+            pass
         return Response(CampaignSerializer(camp, context={"request": request}).data)
 
     @action(detail=False, methods=["post"], url_path="estimate")
